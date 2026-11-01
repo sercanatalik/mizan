@@ -12,6 +12,17 @@ undone.
 > Status: early development. The import foundation (`mizan.import/1` schema,
 > validation and review pipeline) is being built first.
 
+## Design preview
+
+Early design mockups of the app shell (v0.1, "Ledger" direction). These are
+mockups only; the UI has not been built yet.
+
+| Overview | Holdings |
+| --- | --- |
+| ![Overview: portfolio value, returns and accounts needing attention](docs/images/overview.png) | ![Holdings: positions grouped by account with weights and unrealized gains](docs/images/holdings.png) |
+| **Import review** | **Performance** |
+| ![Import review: balance checks, duplicate decisions and commit bar](docs/images/imports-review.png) | ![Performance: time- and money-weighted returns against a benchmark](docs/images/performance.png) |
+
 ## How imports work
 
 ```
