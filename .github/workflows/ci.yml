@@ -9,10 +9,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
+  rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: System packages for Tauri (WebKitGTK)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      # The desktop crate embeds the built frontend at compile time.
+      - name: Build frontend
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -23,3 +38,25 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
+      - name: TypeScript bindings are up to date
+        run: cargo test -p mizan-core --features ts --test bindings
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test

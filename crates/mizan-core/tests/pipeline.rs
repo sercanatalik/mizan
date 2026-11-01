@@ -235,7 +235,11 @@ fn replay_cash_kinds() {
         ),
     ];
     for (v, expected) in cases {
-        assert_eq!(bal(std::slice::from_ref(&v)).cash_in(&e), d(expected), "{v}");
+        assert_eq!(
+            bal(std::slice::from_ref(&v)).cash_in(&e),
+            d(expected),
+            "{v}"
+        );
     }
 }
 
@@ -486,4 +490,22 @@ fn commit_refuses_unresolved_hints() {
         Err(CommitError::Unresolved(_))
     ));
     assert_eq!(store.count("activities").unwrap(), 0);
+}
+
+// ---- undo ----
+
+#[test]
+fn reimport_after_undo_is_new_again() {
+    let mut store = Store::open_in_memory().unwrap();
+    let p = run(&mut store, monthly('a', &[3, 4]));
+    let res = commit(&mut store, &p, &Decisions::new()).unwrap();
+    let again = run(&mut store, monthly('a', &[3, 4]));
+    assert!(again
+        .records
+        .iter()
+        .all(|r| matches!(r.outcome, Outcome::Duplicate { .. })));
+
+    store.undo_batch(res.batch_id).unwrap();
+    let after = run(&mut store, monthly('a', &[3, 4]));
+    assert!(after.records.iter().all(|r| r.outcome == Outcome::New));
 }

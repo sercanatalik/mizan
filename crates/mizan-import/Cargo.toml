@@ -13,3 +13,7 @@ rust_decimal.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 schemars.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+ts = ["dep:ts-rs"]

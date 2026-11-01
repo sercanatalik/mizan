@@ -178,3 +178,132 @@ fn failed_commit_leaves_no_partial_rows() {
         );
     }
 }
+
+// ---- listings and undo ----
+
+fn seeded() -> (Store, AccountId, AssetId) {
+    let mut s = Store::open_in_memory().unwrap();
+    let acct = s.create_account("IBKR", "U1").unwrap();
+    s.map_account_hint("IBKR-U1", acct).unwrap();
+    let hint = InstrumentHint {
+        isin: Some("US0378331005".into()),
+        name: Some("Apple".into()),
+        ..Default::default()
+    };
+    let asset = s.create_asset("isin:US0378331005", &hint).unwrap();
+    (s, acct, asset)
+}
+
+#[test]
+fn list_accounts_assets_and_all_activities() {
+    let (mut s, acct, asset) = seeded();
+    let accounts = s.list_accounts().unwrap();
+    assert_eq!(accounts.len(), 1);
+    assert_eq!(accounts[0].name, "IBKR");
+    assert_eq!(
+        accounts[0].hints,
+        vec!["IBKR-U1".to_string(), "U1".to_string()]
+    );
+
+    let assets = s.list_assets().unwrap();
+    assert_eq!(assets[0].id, asset);
+    assert_eq!(assets[0].instrument_key, "isin:US0378331005");
+    assert_eq!(assets[0].hint.name.as_deref(), Some("Apple"));
+
+    s.commit_batch(&new_batch(acct, asset)).unwrap();
+    assert_eq!(s.all_activities(acct).unwrap().len(), 2);
+    assert!(s.all_activities(999).unwrap().is_empty());
+}
+
+#[test]
+fn list_batches_newest_first_with_counts() {
+    let (mut s, acct, asset) = seeded();
+    let first = s.commit_batch(&new_batch(acct, asset)).unwrap();
+    let mut no_checks = new_batch(acct, asset);
+    no_checks.assertions.clear();
+    no_checks.activities.truncate(1);
+    let second = s.commit_batch(&no_checks).unwrap();
+
+    let batches = s.list_batches().unwrap();
+    assert_eq!(
+        batches.iter().map(|b| b.id).collect::<Vec<_>>(),
+        vec![second, first]
+    );
+    assert_eq!(
+        (
+            batches[0].activity_count,
+            batches[0].assertion_count,
+            batches[0].all_checks_passed
+        ),
+        (1, 0, None)
+    );
+    assert_eq!(
+        (
+            batches[1].activity_count,
+            batches[1].assertion_count,
+            batches[1].all_checks_passed
+        ),
+        (2, 1, Some(true))
+    );
+    assert_eq!(batches[1].adapter, "test");
+}
+
+#[test]
+fn latest_assertion_results_uses_most_recent_date() {
+    let (mut s, acct, asset) = seeded();
+    s.commit_batch(&new_batch(acct, asset)).unwrap(); // as_of 2026-03-31, passed
+    let mut later = new_batch(acct, asset);
+    later.activities.clear();
+    let mut a = assertion();
+    a.as_of = mizan_import::Date::parse("2026-06-30").unwrap();
+    later.assertions = vec![NewAssertion {
+        account_id: acct,
+        assertion: a,
+        result: Some(AssertionResult {
+            passed: false,
+            detail: json!([{"label": "USD"}]),
+        }),
+    }];
+    s.commit_batch(&later).unwrap();
+
+    let latest = s.latest_assertion_results(acct).unwrap();
+    assert_eq!(latest.len(), 1);
+    assert_eq!(latest[0].assertion.as_of.to_string(), "2026-06-30");
+    assert!(!latest[0].passed);
+    assert_eq!(latest[0].detail, json!([{"label": "USD"}]));
+    assert!(s.latest_assertion_results(999).unwrap().is_empty());
+}
+
+#[test]
+fn undo_batch_removes_only_that_import() {
+    let (mut s, acct, asset) = seeded();
+    let keep = s.commit_batch(&new_batch(acct, asset)).unwrap();
+    let undo = s.commit_batch(&new_batch(acct, asset)).unwrap();
+    assert_eq!(s.count("activities").unwrap(), 4);
+
+    s.undo_batch(undo).unwrap();
+    assert_eq!(s.count("activities").unwrap(), 2);
+    assert_eq!(s.count("assertions").unwrap(), 1);
+    assert_eq!(s.count("assertion_results").unwrap(), 1);
+    assert_eq!(
+        s.list_batches()
+            .unwrap()
+            .iter()
+            .map(|b| b.id)
+            .collect::<Vec<_>>(),
+        vec![keep]
+    );
+    assert_eq!(s.count("accounts").unwrap(), 1, "accounts kept");
+    assert_eq!(s.count("account_hints").unwrap(), 2, "hints kept");
+    assert_eq!(s.count("assets").unwrap(), 1, "assets kept");
+}
+
+#[test]
+fn undo_missing_batch_changes_nothing() {
+    let (mut s, acct, asset) = seeded();
+    s.commit_batch(&new_batch(acct, asset)).unwrap();
+    let err = s.undo_batch(42).unwrap_err();
+    assert!(matches!(err, StorageError::NotFound(_)), "{err}");
+    assert_eq!(s.count("activities").unwrap(), 2);
+    assert_eq!(s.count("import_batches").unwrap(), 1);
+}

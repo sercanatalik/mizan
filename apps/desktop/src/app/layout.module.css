@@ -1,0 +1,118 @@
+/* Sidebar + content. Below roughly sidebar + 560px the content wraps under the sidebar. */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.sidebar {
+  flex: 1 1 var(--sidebar-width);
+  background: var(--ink-900);
+  color: var(--sidebar-text);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.content {
+  flex: 999 1 560px;
+  min-width: 0;
+  padding: var(--space-6) 36px 48px;
+}
+
+.contentInner {
+  max-width: 1240px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.brand:hover {
+  color: #ffffff;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groupLabel {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sidebar-muted);
+  padding: 0 10px 6px;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: var(--sidebar-text);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.navLink[aria-current="page"] {
+  background: var(--ink-800);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.navLabel {
+  flex: 1;
+}
+
+.navBadge {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-on-dark);
+  color: var(--accent-on-dark-text);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.bottom {
+  margin-top: auto;
+}
+
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pageSubtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+}

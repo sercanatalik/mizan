@@ -1,0 +1,4 @@
+id,account,date,kind,isin,quantity,amount,currency
+T-1001,ACC-0001,2026-03-02,buy,US0000000001,10,1501.00,USD
+T-1002,ACC-0001,2026-03-14,dividend,US0000000001,,20.40,USD
+,ACC-0001,2026-03-20,mystery,,,1.00,USD

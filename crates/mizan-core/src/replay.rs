@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use mizan_import::{Assertion, Code, ImportRecord, Kind, Money};
 use rust_decimal::Decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::consistency::tolerance;
 use crate::resolve::instrument_key;
@@ -179,7 +179,8 @@ pub fn replay<'a>(records: impl IntoIterator<Item = &'a ImportRecord>) -> Balanc
     b
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct AssertionLine {
     /// Currency code for cash, instrument key for positions.
     pub label: String,
@@ -189,6 +190,7 @@ pub struct AssertionLine {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct AssertionCheck {
     pub account: String,
     pub as_of: String,

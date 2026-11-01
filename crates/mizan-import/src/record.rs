@@ -10,6 +10,7 @@ pub const SCHEMA_V1: &str = "mizan.import/1";
 
 /// Where a record, assertion or diagnostic came from.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Provenance {
     /// Adapter identifier, e.g. `degiro-csv`.
@@ -26,6 +27,7 @@ pub struct Provenance {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
     // Cash
@@ -127,6 +129,7 @@ impl Kind {
 
 /// Reference to an account as the statement names it. Never an internal id.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct AccountHint {
     /// Identifier as printed on the statement, e.g. `U1234567`.
@@ -137,6 +140,7 @@ pub struct AccountHint {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum ClassHint {
     Equity,
@@ -151,6 +155,7 @@ pub enum ClassHint {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum OptionRight {
     Call,
@@ -159,6 +164,7 @@ pub enum OptionRight {
 
 /// Contract terms for an option instrument.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct OptionTerms {
     /// Underlying symbol as printed on the statement.
@@ -170,6 +176,7 @@ pub struct OptionTerms {
 
 /// Reference to an instrument by whatever identifiers the statement shows.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct InstrumentHint {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -213,6 +220,7 @@ impl InstrumentHint {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum ChargeType {
     Commission,
@@ -225,6 +233,7 @@ pub enum ChargeType {
 
 /// A fee or tax incurred as part of its parent record.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Charge {
     #[serde(rename = "type")]
@@ -234,6 +243,7 @@ pub struct Charge {
 
 /// A currency conversion shown on the statement.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Fx {
     /// Units of `to` per one unit of `from`.
@@ -244,6 +254,7 @@ pub struct Fx {
 
 /// One instrument's change in a multi-asset corporate action.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Leg {
     pub instrument: InstrumentHint,
@@ -256,6 +267,7 @@ pub struct Leg {
 
 /// New units per old units.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct SplitRatio {
     pub new: Dec,
@@ -263,6 +275,7 @@ pub struct SplitRatio {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum LinkRole {
     Reverses,
@@ -272,6 +285,7 @@ pub enum LinkRole {
 
 /// A link to another record, by its external identifier.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Link {
     pub role: LinkRole,
@@ -281,6 +295,7 @@ pub struct Link {
 
 /// One economic event as a statement reports it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct ImportRecord {
     pub source: Provenance,
@@ -326,11 +341,13 @@ pub struct ImportRecord {
     pub memo: Option<String>,
     /// Original source fields, kept for debugging.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub raw: Option<serde_json::Value>,
 }
 
 /// Expected quantity of one instrument.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct PositionBalance {
     pub instrument: InstrumentHint,
@@ -339,6 +356,7 @@ pub struct PositionBalance {
 
 /// Closing balances printed on a statement.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Assertion {
     pub source: Provenance,
@@ -352,6 +370,7 @@ pub struct Assertion {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     Info,
@@ -361,6 +380,7 @@ pub enum Severity {
 
 /// Input an adapter could not turn into a record. Shown in review, never persisted as an activity.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Diagnostic {
     pub severity: Severity,
@@ -368,11 +388,13 @@ pub struct Diagnostic {
     /// Position in the source, e.g. `row 87`.
     pub locator: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub raw: Option<serde_json::Value>,
 }
 
 /// Everything one adapter run produces.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Batch {
     /// Must be `mizan.import/1`.

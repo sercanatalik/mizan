@@ -22,6 +22,8 @@ pub enum StorageError {
     Sqlite(#[from] rusqlite::Error),
     #[error("stored JSON could not be read: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("{0} not found")]
+    NotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, StorageError>;
@@ -71,6 +73,48 @@ pub struct StoredActivity {
     pub source_order: i64,
     pub basis_unknown: bool,
     pub record: ImportRecord,
+}
+
+/// An account with the statement identifiers mapped to it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountRow {
+    pub id: AccountId,
+    pub name: String,
+    pub hints: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssetRow {
+    pub id: AssetId,
+    pub instrument_key: String,
+    pub name: Option<String>,
+    pub currency: Option<String>,
+    pub hint: InstrumentHint,
+}
+
+/// One committed import, as listed in the import history.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BatchRow {
+    pub id: BatchId,
+    pub committed_at: String,
+    pub adapter: String,
+    pub adapter_version: String,
+    pub file_sha256: String,
+    pub activity_count: i64,
+    pub assertion_count: i64,
+    /// `None` when the import had no balance checks.
+    pub all_checks_passed: Option<bool>,
+}
+
+/// A stored balance assertion with its recorded result.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoredAssertionResult {
+    pub assertion_id: i64,
+    pub batch_id: BatchId,
+    pub account_id: AccountId,
+    pub assertion: Assertion,
+    pub passed: bool,
+    pub detail: serde_json::Value,
 }
 
 pub struct Store {
@@ -347,5 +391,153 @@ impl Store {
         Ok(self
             .conn
             .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))?)
+    }
+
+    // ---- listings for the app ----
+
+    pub fn list_accounts(&self) -> Result<Vec<AccountRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT a.id, a.name, h.hint FROM accounts a LEFT JOIN account_hints h ON h.account_id = a.id
+             ORDER BY a.id, h.hint",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, AccountId>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Option<String>>(2)?,
+            ))
+        })?;
+        let mut out: Vec<AccountRow> = Vec::new();
+        for row in rows {
+            let (id, name, hint) = row?;
+            if out.last().map(|a| a.id) != Some(id) {
+                out.push(AccountRow {
+                    id,
+                    name,
+                    hints: Vec::new(),
+                });
+            }
+            if let Some(h) = hint {
+                out.last_mut().expect("pushed above").hints.push(h);
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn list_assets(&self) -> Result<Vec<AssetRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, instrument_key, name, currency, hint_json FROM assets ORDER BY id",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get::<_, String>(4)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, instrument_key, name, currency, json) = row?;
+            out.push(AssetRow {
+                id,
+                instrument_key,
+                name,
+                currency,
+                hint: serde_json::from_str(&json)?,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Every activity of an account, in date and insertion order.
+    pub fn all_activities(&self, account_id: AccountId) -> Result<Vec<StoredActivity>> {
+        self.activities_between(account_id, "0000-01-01", "9999-12-31")
+    }
+
+    /// Committed imports, newest first.
+    pub fn list_batches(&self) -> Result<Vec<BatchRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT b.id, b.committed_at, b.adapter, b.adapter_version, b.file_sha256,
+                (SELECT COUNT(*) FROM activities WHERE batch_id = b.id),
+                (SELECT COUNT(*) FROM assertions WHERE batch_id = b.id),
+                (SELECT MIN(r.passed) FROM assertion_results r JOIN assertions s ON s.id = r.assertion_id
+                  WHERE s.batch_id = b.id)
+             FROM import_batches b ORDER BY b.id DESC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(BatchRow {
+                id: r.get(0)?,
+                committed_at: r.get(1)?,
+                adapter: r.get(2)?,
+                adapter_version: r.get(3)?,
+                file_sha256: r.get(4)?,
+                activity_count: r.get(5)?,
+                assertion_count: r.get(6)?,
+                all_checks_passed: r.get::<_, Option<i64>>(7)?.map(|v| v == 1),
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// Results of an account's balance checks on its most recent check date.
+    pub fn latest_assertion_results(
+        &self,
+        account_id: AccountId,
+    ) -> Result<Vec<StoredAssertionResult>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT s.id, s.batch_id, s.account_id, s.assertion_json, r.passed, r.result_json
+             FROM assertions s JOIN assertion_results r ON r.assertion_id = s.id
+             WHERE s.account_id = ?1
+               AND s.as_of = (SELECT MAX(as_of) FROM assertions WHERE account_id = ?1)
+             ORDER BY s.id",
+        )?;
+        let rows = stmt.query_map([account_id], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, BatchId>(1)?,
+                r.get::<_, AccountId>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, bool>(4)?,
+                r.get::<_, String>(5)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (assertion_id, batch_id, account_id, a, passed, detail) = row?;
+            out.push(StoredAssertionResult {
+                assertion_id,
+                batch_id,
+                account_id,
+                assertion: serde_json::from_str(&a)?,
+                passed,
+                detail: serde_json::from_str(&detail)?,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Remove one import: its assertion results, assertions, activities and the batch row.
+    /// Accounts, hints and assets are kept. All-or-nothing.
+    pub fn undo_batch(&mut self, batch_id: BatchId) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        let exists: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM import_batches WHERE id = ?1)",
+            [batch_id],
+            |r| r.get(0),
+        )?;
+        if !exists {
+            return Err(StorageError::NotFound(format!("import {batch_id}")));
+        }
+        tx.execute(
+            "DELETE FROM assertion_results WHERE assertion_id IN (SELECT id FROM assertions WHERE batch_id = ?1)",
+            [batch_id],
+        )?;
+        tx.execute("DELETE FROM assertions WHERE batch_id = ?1", [batch_id])?;
+        tx.execute("DELETE FROM activities WHERE batch_id = ?1", [batch_id])?;
+        tx.execute("DELETE FROM import_batches WHERE id = ?1", [batch_id])?;
+        tx.commit()?;
+        Ok(())
     }
 }

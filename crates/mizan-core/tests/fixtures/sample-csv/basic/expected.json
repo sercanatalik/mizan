@@ -1,0 +1,27 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {
+      "source": {"adapter": "sample-csv", "adapter_version": "0.1.0", "file_sha256": "31d300ac2edc16c6601922997ab26aed87b98b419868da4ff9ab69e2c19d0369", "locator": "row 2"},
+      "external_id": "T-1001",
+      "account": {"hint": "ACC-0001"},
+      "kind": "buy",
+      "date": "2026-03-02",
+      "instrument": {"isin": "US0000000001"},
+      "quantity": "10",
+      "net_cash": {"amount": "1501.00", "currency": "USD"}
+    },
+    {
+      "source": {"adapter": "sample-csv", "adapter_version": "0.1.0", "file_sha256": "31d300ac2edc16c6601922997ab26aed87b98b419868da4ff9ab69e2c19d0369", "locator": "row 3"},
+      "external_id": "T-1002",
+      "account": {"hint": "ACC-0001"},
+      "kind": "dividend",
+      "date": "2026-03-14",
+      "instrument": {"isin": "US0000000001"},
+      "net_cash": {"amount": "20.40", "currency": "USD"}
+    }
+  ],
+  "diagnostics": [
+    {"severity": "warning", "message": "unknown transaction kind \"mystery\"", "locator": "row 4"}
+  ]
+}

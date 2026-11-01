@@ -1,0 +1,31 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "locator": "row 2"}, "external_id": "E4", "account": {"hint": "U7654321"},
+     "kind": "position_in", "date": "2026-03-03", "instrument": {"isin": "IE00BK5BQT80", "name": "Vanguard FTSE All-World"},
+     "quantity": "20"},
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "locator": "row 3"}, "external_id": "E5", "account": {"hint": "U7654321"},
+     "kind": "spinoff", "date": "2026-04-10", "instrument": {"isin": "US0378331005"},
+     "legs": [{"instrument": {"isin": "US00000NEWCO", "name": "NewCo Inc"}, "quantity_delta": "10", "cost_basis_share": "0.05"}],
+     "net_cash": {"amount": "2.50", "currency": "USD"}, "memo": "Spin-off, cash in lieu of fractional share"},
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "locator": "row 4"}, "external_id": "E6", "account": {"hint": "U7654321"},
+     "kind": "dividend", "date": "2026-05-15", "instrument": {"isin": "US0378331005"},
+     "gross": {"amount": "10.00", "currency": "USD"},
+     "charges": [{"type": "withholding_tax", "amount": {"amount": "1.50", "currency": "USD"}}],
+     "net_cash": {"amount": "8.50", "currency": "USD"}},
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "locator": "row 5"}, "external_id": "E7", "account": {"hint": "U7654321"},
+     "kind": "buy", "date": "2026-06-02", "instrument": {"isin": "US0378331005"},
+     "quantity": "10", "price": {"amount": "160.00", "currency": "USD"},
+     "charges": [{"type": "commission", "amount": {"amount": "1.00", "currency": "USD"}}],
+     "net_cash": {"amount": "1601.00", "currency": "USD"}}
+  ],
+  "assertions": [
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "locator": "summary"}, "account": {"hint": "U7654321"}, "as_of": "2026-06-30",
+     "cash": [{"amount": "2417.16", "currency": "USD"}],
+     "positions": [
+       {"instrument": {"isin": "US0378331005"}, "quantity": "50"},
+       {"instrument": {"isin": "US00000NEWCO"}, "quantity": "10"},
+       {"instrument": {"isin": "IE00BK5BQT80"}, "quantity": "20"}
+     ]}
+  ]
+}

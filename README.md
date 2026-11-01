@@ -9,8 +9,8 @@ adapters, not a paid sync service. Every import is reviewed before it is
 saved, checked against the balances printed on the statement, and can be
 undone.
 
-> Status: early development. The import foundation (`mizan.import/1` schema,
-> validation and review pipeline) is being built first.
+> Status: early development. The import pipeline and a desktop app shell exist;
+> market data, returns and statement adapters come next.
 
 ## Design preview
 
@@ -42,7 +42,20 @@ statement file --> adapter --> mizan.import/1 batch --> review --> commit
 The schema is documented in [docs/import-schema.md](docs/import-schema.md) and
 published as JSON Schema in [`schema/`](schema/).
 
-## Building
+## Desktop app
+
+```sh
+cd apps/desktop
+npm install
+cargo tauri dev      # run with hot reload
+cargo tauri build    # release bundle under target/release/bundle/
+```
+
+Your data is one SQLite file in your app data folder. See
+[docs/desktop.md](docs/desktop.md) for its location, the import flow and what
+each screen shows.
+
+## Building the libraries and CLI
 
 Requires a recent stable Rust toolchain.
 

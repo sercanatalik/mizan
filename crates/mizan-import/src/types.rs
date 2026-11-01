@@ -205,6 +205,7 @@ impl JsonSchema for Code {
 
 /// A monetary amount: a decimal paired with a currency or asset code.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Money {
     pub amount: Dec,
@@ -317,6 +318,26 @@ impl JsonSchema for Sha256Hex {
         )
     }
 }
+
+/// Decimal, code, date and hash newtypes are plain strings in TypeScript.
+#[cfg(feature = "ts")]
+macro_rules! ts_string {
+    ($($t:ty),*) => {$(
+        impl ts_rs::TS for $t {
+            type WithoutGenerics = Self;
+            type OptionInnerType = Self;
+            fn name(_: &ts_rs::Config) -> String {
+                "string".into()
+            }
+            fn inline(cfg: &ts_rs::Config) -> String {
+                <Self as ts_rs::TS>::name(cfg)
+            }
+        }
+    )*};
+}
+
+#[cfg(feature = "ts")]
+ts_string!(Dec, Code, Date, Sha256Hex);
 
 #[cfg(test)]
 mod tests {

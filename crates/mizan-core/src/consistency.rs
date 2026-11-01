@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ConsistencyWarning {
     /// Position in the batch's `records` array.
     pub index: usize,

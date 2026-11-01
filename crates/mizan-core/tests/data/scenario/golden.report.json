@@ -1,0 +1,188 @@
+{
+  "q1": {
+    "summary": {
+      "new": 4,
+      "duplicates": 0,
+      "pending_confirmations": 0,
+      "consistency_warnings": 0,
+      "ordering_diagnostics": 0,
+      "adapter_diagnostics": 0,
+      "validation_errors": 0,
+      "unresolved": 0,
+      "assertions_failed": 0
+    },
+    "new_records": [
+      {
+        "index": 0,
+        "locator": "row 2",
+        "kind": "deposit",
+        "date": "2026-01-02",
+        "net_cash": "10000.00 USD"
+      },
+      {
+        "index": 1,
+        "locator": "row 3",
+        "kind": "buy",
+        "date": "2026-01-05",
+        "instrument": "isin:US0378331005",
+        "quantity": "40",
+        "net_cash": "6001.00 USD"
+      },
+      {
+        "index": 2,
+        "locator": "row 4",
+        "kind": "dividend",
+        "date": "2026-02-13",
+        "instrument": "isin:US0378331005",
+        "net_cash": "8.16 USD"
+      },
+      {
+        "index": 3,
+        "locator": "row 5",
+        "kind": "position_in",
+        "date": "2026-03-03",
+        "instrument": "isin:IE00BK5BQT80",
+        "quantity": "20"
+      }
+    ],
+    "duplicates": [],
+    "confirmations": [],
+    "consistency_warnings": [],
+    "ordering_diagnostics": [],
+    "adapter_diagnostics": [],
+    "validation_errors": [],
+    "unresolved": [],
+    "assertion_results": [
+      {
+        "account": "U7654321",
+        "as_of": "2026-03-31",
+        "locator": "summary",
+        "passed": true,
+        "lines": [
+          {
+            "label": "USD",
+            "expected": "4007.16",
+            "computed": "4007.16",
+            "passed": true
+          },
+          {
+            "label": "isin:US0378331005",
+            "expected": "40",
+            "computed": "40",
+            "passed": true
+          },
+          {
+            "label": "isin:IE00BK5BQT80",
+            "expected": "20",
+            "computed": "20",
+            "passed": true
+          }
+        ]
+      }
+    ],
+    "flagged_adjustments": [],
+    "basis_unknown": [
+      {
+        "index": 3,
+        "locator": "row 5",
+        "kind": "position_in",
+        "date": "2026-03-03",
+        "instrument": "isin:IE00BK5BQT80",
+        "quantity": "20"
+      }
+    ]
+  },
+  "q2": {
+    "summary": {
+      "new": 3,
+      "duplicates": 1,
+      "pending_confirmations": 0,
+      "consistency_warnings": 0,
+      "ordering_diagnostics": 0,
+      "adapter_diagnostics": 0,
+      "validation_errors": 0,
+      "unresolved": 0,
+      "assertions_failed": 0
+    },
+    "new_records": [
+      {
+        "index": 1,
+        "locator": "row 3",
+        "kind": "spinoff",
+        "date": "2026-04-10",
+        "instrument": "isin:US0378331005",
+        "net_cash": "2.50 USD",
+        "memo": "Spin-off, cash in lieu of fractional share"
+      },
+      {
+        "index": 2,
+        "locator": "row 4",
+        "kind": "dividend",
+        "date": "2026-05-15",
+        "instrument": "isin:US0378331005",
+        "net_cash": "8.50 USD"
+      },
+      {
+        "index": 3,
+        "locator": "row 5",
+        "kind": "buy",
+        "date": "2026-06-02",
+        "instrument": "isin:US0378331005",
+        "quantity": "10",
+        "net_cash": "1601.00 USD"
+      }
+    ],
+    "duplicates": [
+      {
+        "index": 0,
+        "locator": "row 2",
+        "kind": "position_in",
+        "date": "2026-03-03",
+        "instrument": "isin:IE00BK5BQT80",
+        "quantity": "20"
+      }
+    ],
+    "confirmations": [],
+    "consistency_warnings": [],
+    "ordering_diagnostics": [],
+    "adapter_diagnostics": [],
+    "validation_errors": [],
+    "unresolved": [],
+    "assertion_results": [
+      {
+        "account": "U7654321",
+        "as_of": "2026-06-30",
+        "locator": "summary",
+        "passed": true,
+        "lines": [
+          {
+            "label": "USD",
+            "expected": "2417.16",
+            "computed": "2417.16",
+            "passed": true
+          },
+          {
+            "label": "isin:US0378331005",
+            "expected": "50",
+            "computed": "50",
+            "passed": true
+          },
+          {
+            "label": "isin:US00000NEWCO",
+            "expected": "10",
+            "computed": "10",
+            "passed": true
+          },
+          {
+            "label": "isin:IE00BK5BQT80",
+            "expected": "20",
+            "computed": "20",
+            "passed": true
+          }
+        ]
+      }
+    ],
+    "flagged_adjustments": [],
+    "basis_unknown": []
+  }
+}

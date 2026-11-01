@@ -229,3 +229,41 @@ Diagnostics are shown during review and are never saved as activities.
   ]
 }
 ```
+
+## Command-line tools
+
+`mizan-cli` checks batches and previews imports without touching your data.
+
+```sh
+cargo build -p mizan-cli
+
+# Is this a valid mizan.import/1 batch? Exits 1 if any item is invalid.
+mizan-cli import validate batch.json
+
+# What would importing this batch do to the database at mizan.db?
+# Nothing is written; if mizan.db does not exist, an empty database is assumed.
+mizan-cli import preview batch.json --db mizan.db
+
+# Treat unknown accounts and instruments as new instead of unresolved,
+# and print the full review report as JSON.
+mizan-cli import preview batch.json --db mizan.db --create-missing --json
+```
+
+`preview` prints the review: new records, duplicates, records that need your
+decision, figure warnings, ordering questions, adapter diagnostics, invalid
+items, unresolved hints, balance checks, flagged adjustments and positions with
+unknown cost basis.
+
+## Adapter fixtures
+
+Every adapter ships fixtures, one directory per case:
+
+```text
+fixtures/<adapter-id>/<case>/
+    input.<ext>      anonymized source file
+    expected.json    the exact batch the adapter must produce
+```
+
+The harness in `mizan_core::fixture` passes the input bytes and their SHA-256
+to the adapter, checks that the output is a clean batch, and compares it with
+`expected.json`. A mismatch fails with a line diff.

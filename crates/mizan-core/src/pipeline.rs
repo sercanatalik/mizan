@@ -17,7 +17,7 @@ use mizan_storage::{
     AccountId, AssertionResult, BatchId, NewActivity, NewAssertion, NewBatch, StorageError, Store,
     StoredActivity,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::consistency::{check_record, ConsistencyWarning};
@@ -67,6 +67,7 @@ pub fn resolve_batch(
 
 /// How a record relates to what is already stored.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum Outcome {
     New,
@@ -82,7 +83,8 @@ pub enum Outcome {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum Decision {
     /// A second, genuine record: commit it.
@@ -186,6 +188,7 @@ pub fn prepare(store: &Store, batch: ResolvedBatch) -> Result<Prepared, StorageE
 
 /// One record as shown in the review.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RecordSummary {
     pub index: usize,
     pub locator: String,
@@ -221,6 +224,7 @@ impl RecordSummary {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Confirmation {
     pub record: RecordSummary,
     pub existing_activity_id: i64,
@@ -231,6 +235,7 @@ pub struct Confirmation {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ReviewSummary {
     pub new: usize,
     pub duplicates: usize,
@@ -245,6 +250,7 @@ pub struct ReviewSummary {
 
 /// Everything the user sees before committing.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ReviewReport {
     pub summary: ReviewSummary,
     pub new_records: Vec<RecordSummary>,

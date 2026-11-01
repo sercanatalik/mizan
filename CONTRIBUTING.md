@@ -9,6 +9,15 @@ Every adapter ships with fixtures: an anonymized sample statement and the exact
 `mizan.import/1` batch it must produce. CI runs every adapter against its
 fixtures.
 
+```text
+fixtures/<adapter-id>/<case>/
+    input.<ext>      anonymized source file
+    expected.json    the exact batch the adapter must produce
+```
+
+See [docs/import-schema.md](docs/import-schema.md#adapter-fixtures) for the
+harness, and `mizan-cli import validate` to check a batch by hand.
+
 Before submitting a fixture, remove personal data:
 
 - account numbers, names, addresses, IBANs and tax IDs

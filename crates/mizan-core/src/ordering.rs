@@ -52,6 +52,7 @@ pub struct OrderInput {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct OrderingDiagnostic {
     pub account: String,
     pub date: String,

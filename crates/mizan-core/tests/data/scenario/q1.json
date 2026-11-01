@@ -1,0 +1,28 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": "row 2"}, "external_id": "E1", "account": {"hint": "U7654321", "name_hint": "IBKR"},
+     "kind": "deposit", "date": "2026-01-02", "net_cash": {"amount": "10000.00", "currency": "USD"}},
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": "row 3"}, "external_id": "E2", "account": {"hint": "U7654321"},
+     "kind": "buy", "date": "2026-01-05", "instrument": {"isin": "US0378331005", "symbol": "AAPL", "currency": "USD"},
+     "quantity": "40", "price": {"amount": "150.00", "currency": "USD"},
+     "charges": [{"type": "commission", "amount": {"amount": "1.00", "currency": "USD"}}],
+     "net_cash": {"amount": "6001.00", "currency": "USD"}},
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": "row 4"}, "external_id": "E3", "account": {"hint": "U7654321"},
+     "kind": "dividend", "date": "2026-02-13", "instrument": {"isin": "US0378331005"},
+     "gross": {"amount": "9.60", "currency": "USD"},
+     "charges": [{"type": "withholding_tax", "amount": {"amount": "1.44", "currency": "USD"}}],
+     "net_cash": {"amount": "8.16", "currency": "USD"}},
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": "row 5"}, "external_id": "E4", "account": {"hint": "U7654321"},
+     "kind": "position_in", "date": "2026-03-03", "instrument": {"isin": "IE00BK5BQT80", "name": "Vanguard FTSE All-World"},
+     "quantity": "20"}
+  ],
+  "assertions": [
+    {"source": {"adapter": "ibkr-flex", "adapter_version": "1.0.0", "file_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": "summary"}, "account": {"hint": "U7654321"}, "as_of": "2026-03-31",
+     "cash": [{"amount": "4007.16", "currency": "USD"}],
+     "positions": [
+       {"instrument": {"isin": "US0378331005"}, "quantity": "40"},
+       {"instrument": {"isin": "IE00BK5BQT80"}, "quantity": "20"}
+     ]}
+  ]
+}

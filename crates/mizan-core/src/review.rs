@@ -4,6 +4,7 @@ use mizan_import::{AccountHint, InstrumentHint};
 use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ReviewItem {
     /// No account is mapped to this statement identifier.

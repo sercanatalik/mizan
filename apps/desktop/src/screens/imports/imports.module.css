@@ -1,0 +1,224 @@
+.sourceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.fieldValue {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.statDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.checkFailed {
+  border-color: var(--warn);
+  box-shadow: inset 4px 0 0 var(--warn);
+}
+
+.checkRow {
+  display: grid;
+  grid-template-columns: 26px minmax(140px, 1.3fr) minmax(90px, 1fr) minmax(90px, 1fr) 70px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--divider);
+}
+
+.checkHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  font-size: 13px;
+}
+
+.checkIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pass {
+  background: var(--accent-soft);
+  color: var(--gain);
+}
+
+.fail {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.failText {
+  color: var(--warn-strong);
+  font-weight: 600;
+}
+
+.okText {
+  color: var(--gain);
+  font-weight: 500;
+}
+
+.note {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+.noteWarn {
+  font-size: 12px;
+  color: var(--warn-strong);
+  text-wrap: pretty;
+}
+
+.actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.unresolvedRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--divider);
+}
+
+.mapForm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.select {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.commitBar {
+  background: var(--ink-900);
+  color: #e7eaed;
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.commitDetail {
+  font-size: 12px;
+  color: #a9b1b9;
+}
+
+.commitButton {
+  border: 0;
+  background: var(--accent-on-dark);
+  color: var(--accent-on-dark-text);
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.commitButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.discard {
+  border: 1px solid var(--ink-700);
+  background: transparent;
+  color: #e7eaed;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.error {
+  background: var(--warn-soft);
+  color: var(--warn-strong);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-weight: 500;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list li {
+  padding: 8px 0;
+  border-top: 1px solid var(--divider);
+  font-size: 13px;
+}

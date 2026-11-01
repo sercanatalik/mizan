@@ -165,3 +165,66 @@ pub fn resolve_records(
     }
     Ok((out, items))
 }
+
+/// Read-only resolver for previews: looks hints up in the store and, when the
+/// policy allows creation, hands out temporary negative ids instead of writing.
+pub struct PreviewResolver<'a> {
+    pub store: &'a Store,
+    pub policy: CreatePolicy,
+    next_id: i64,
+    accounts: std::collections::HashMap<String, AccountId>,
+    assets: std::collections::HashMap<String, AssetId>,
+}
+
+impl<'a> PreviewResolver<'a> {
+    pub fn new(store: &'a Store, policy: CreatePolicy) -> Self {
+        PreviewResolver {
+            store,
+            policy,
+            next_id: -1,
+            accounts: Default::default(),
+            assets: Default::default(),
+        }
+    }
+
+    fn temp_id(&mut self) -> i64 {
+        let id = self.next_id;
+        self.next_id -= 1;
+        id
+    }
+}
+
+impl Resolver for PreviewResolver<'_> {
+    fn account(&mut self, hint: &AccountHint) -> Result<Option<AccountId>, StorageError> {
+        if let Some(id) = self.store.account_for_hint(&hint.hint)? {
+            return Ok(Some(id));
+        }
+        if !self.policy.create_accounts {
+            return Ok(None);
+        }
+        if let Some(id) = self.accounts.get(&hint.hint) {
+            return Ok(Some(*id));
+        }
+        let id = self.temp_id();
+        self.accounts.insert(hint.hint.clone(), id);
+        Ok(Some(id))
+    }
+
+    fn instrument(&mut self, hint: &InstrumentHint) -> Result<Option<AssetId>, StorageError> {
+        let Some(key) = instrument_key(hint) else {
+            return Ok(None);
+        };
+        if let Some(id) = self.store.asset_for_key(&key)? {
+            return Ok(Some(id));
+        }
+        if !self.policy.create_assets {
+            return Ok(None);
+        }
+        if let Some(id) = self.assets.get(&key) {
+            return Ok(Some(*id));
+        }
+        let id = self.temp_id();
+        self.assets.insert(key, id);
+        Ok(Some(id))
+    }
+}

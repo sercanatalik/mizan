@@ -2,8 +2,10 @@
 
 pub mod consistency;
 pub mod fingerprint;
+pub mod fixture;
 pub mod ordering;
 pub mod pipeline;
+pub mod portfolio;
 pub mod replay;
 pub mod resolve;
 pub mod review;
@@ -17,6 +19,7 @@ pub use pipeline::{
 };
 pub use replay::{check_assertion, replay, AssertionCheck, AssertionLine, Balances};
 pub use resolve::{
-    instrument_key, resolve_records, CreatePolicy, MappingResolver, ResolvedRecord, Resolver,
+    instrument_key, resolve_records, CreatePolicy, MappingResolver, PreviewResolver,
+    ResolvedRecord, Resolver,
 };
 pub use review::ReviewItem;
