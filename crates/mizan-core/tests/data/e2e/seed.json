@@ -1,0 +1,17 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": "row 180"},
+     "external_id": "DEP-1", "account": {"hint": "DEG-4417", "name_hint": "Degiro"}, "kind": "deposit", "date": "2026-06-30",
+     "net_cash": {"amount": "5000.00", "currency": "EUR"}},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": "row 188"},
+     "account": {"hint": "DEG-4417"}, "kind": "buy", "date": "2026-07-01",
+     "instrument": {"isin": "NL0010273215", "name": "ASML Holding"}, "quantity": "2",
+     "price": {"amount": "640.00", "currency": "EUR"},
+     "charges": [{"type": "commission", "amount": {"amount": "4.60", "currency": "EUR"}}],
+     "net_cash": {"amount": "1284.60", "currency": "EUR"}},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": "row 191"},
+     "external_id": "DIV-1", "account": {"hint": "DEG-4417"}, "kind": "dividend", "date": "2026-07-03",
+     "instrument": {"isin": "IE00BK5BQT80"}, "net_cash": {"amount": "52.10", "currency": "EUR"}}
+  ]
+}

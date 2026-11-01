@@ -1,0 +1,40 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "row 12"},
+     "account": {"hint": "DEG-4417"}, "kind": "buy", "date": "2026-07-01",
+     "instrument": {"isin": "NL0010273215", "name": "ASML Holding"}, "quantity": "2",
+     "price": {"amount": "640.00", "currency": "EUR"},
+     "charges": [{"type": "commission", "amount": {"amount": "4.60", "currency": "EUR"}}],
+     "net_cash": {"amount": "1284.60", "currency": "EUR"}},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "row 20"},
+     "external_id": "DIV-1", "account": {"hint": "DEG-4417"}, "kind": "dividend", "date": "2026-07-03",
+     "instrument": {"isin": "IE00BK5BQT80"}, "net_cash": {"amount": "52.10", "currency": "EUR"}},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "row 25"},
+     "external_id": "S-1", "account": {"hint": "DEG-4417"}, "kind": "sell", "date": "2026-07-01",
+     "instrument": {"isin": "NL0010273215"}, "quantity": "1", "net_cash": {"amount": "684.20", "currency": "EUR"}},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "row 131"},
+     "external_id": "S-2", "account": {"hint": "DEG-4417"}, "kind": "sell", "date": "2026-09-12",
+     "instrument": {"isin": "DE0007164600", "name": "SAP SE"}, "quantity": "8",
+     "price": {"amount": "214.50", "currency": "EUR"},
+     "charges": [{"type": "commission", "amount": {"amount": "3.90", "currency": "EUR"}}],
+     "net_cash": {"amount": "1702.10", "currency": "EUR"}},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "row 140"},
+     "external_id": "T-IN-1", "account": {"hint": "DEG-4417"}, "kind": "position_in", "date": "2026-09-20",
+     "instrument": {"isin": "IE00BK5BQT80", "name": "Vanguard FTSE All-World"}, "quantity": "20"},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "row 141"},
+     "external_id": "ADJ-1", "account": {"hint": "DEG-4417"}, "kind": "adjustment", "date": "2026-09-29",
+     "net_cash": {"amount": "0.41", "currency": "EUR"}, "memo": "Interest rebate correction"},
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "row 150"},
+     "account": {"hint": "DEG-4417"}, "kind": "unknown", "date": "2026-09-30"}
+  ],
+  "assertions": [
+    {"source": {"adapter": "degiro-csv", "adapter_version": "0.4.0", "file_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": "summary"},
+     "account": {"hint": "DEG-4417"}, "as_of": "2026-09-30",
+     "cash": [{"amount": "4869.61", "currency": "EUR"}],
+     "positions": [{"instrument": {"isin": "NL0010273215"}, "quantity": "3"}]}
+  ],
+  "diagnostics": [
+    {"severity": "warning", "message": "No rule for description \"Flatex Zinsgutschrift Korrektur\"", "locator": "row 87"}
+  ]
+}

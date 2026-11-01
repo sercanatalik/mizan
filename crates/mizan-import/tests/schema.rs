@@ -7,7 +7,9 @@ use mizan_import::schema::{batch_schema_json, SCHEMA_FILE};
 
 #[test]
 fn committed_schema_matches_generated() {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(SCHEMA_FILE);
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(SCHEMA_FILE);
     let generated = batch_schema_json();
     if std::env::var_os("MIZAN_BLESS").is_some() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();

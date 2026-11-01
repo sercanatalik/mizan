@@ -11,7 +11,8 @@ pub fn batch_schema_json() -> String {
     let meta = schema.schema.metadata();
     meta.title = Some("mizan.import/1 batch".into());
     meta.description = Some(
-        "Output of one Mizan import adapter run: records, balance assertions and diagnostics.".into(),
+        "Output of one Mizan import adapter run: records, balance assertions and diagnostics."
+            .into(),
     );
     let mut s = serde_json::to_string_pretty(&schema).expect("schema serializes");
     s.push('\n');

@@ -150,7 +150,8 @@ pub struct Code(String);
 impl Code {
     pub fn parse(s: &str) -> Result<Self, String> {
         let ok = (2..=12).contains(&s.len())
-            && s.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit());
+            && s.bytes()
+                .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit());
         if ok {
             Ok(Code(s.to_owned()))
         } else {
@@ -269,7 +270,10 @@ pub struct Sha256Hex(String);
 
 impl Sha256Hex {
     pub fn parse(s: &str) -> Result<Self, String> {
-        if s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+        if s.len() == 64
+            && s.bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
             Ok(Sha256Hex(s.to_owned()))
         } else {
             Err(format!(
@@ -323,15 +327,22 @@ mod tests {
     fn decimal_string_keeps_precision() {
         let d: Dec = serde_json::from_value(json!("0.125")).unwrap();
         assert_eq!(d.to_string(), "0.125");
-        let m: Money = serde_json::from_value(json!({"amount": "20.40", "currency": "USD"})).unwrap();
+        let m: Money =
+            serde_json::from_value(json!({"amount": "20.40", "currency": "USD"})).unwrap();
         assert_eq!(m.amount.to_string(), "20.40");
-        assert_eq!(serde_json::to_value(&m).unwrap(), json!({"amount": "20.40", "currency": "USD"}));
+        assert_eq!(
+            serde_json::to_value(&m).unwrap(),
+            json!({"amount": "20.40", "currency": "USD"})
+        );
     }
 
     #[test]
     fn float_is_rejected() {
         let err = serde_json::from_value::<Dec>(json!(20.4)).unwrap_err();
-        assert!(err.to_string().contains("must be written as strings"), "{err}");
+        assert!(
+            err.to_string().contains("must be written as strings"),
+            "{err}"
+        );
         assert!(serde_json::from_value::<Dec>(json!(20)).is_err());
     }
 

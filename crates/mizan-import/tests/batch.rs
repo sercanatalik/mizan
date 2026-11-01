@@ -142,12 +142,20 @@ fn hints_only_accepted() {
 #[test]
 fn internal_identifiers_rejected() {
     let e = single_error(with(dividend(), "asset_id", json!(42)));
-    assert!(e.message.contains("internal Mizan identifier"), "{}", e.message);
+    assert!(
+        e.message.contains("internal Mizan identifier"),
+        "{}",
+        e.message
+    );
 
     let mut r = dividend();
     r["account"]["account_id"] = json!(7);
     let e = single_error(r);
-    assert!(e.message.contains("\"account_id\" in \"account\""), "{}", e.message);
+    assert!(
+        e.message.contains("\"account_id\" in \"account\""),
+        "{}",
+        e.message
+    );
 }
 
 #[test]
@@ -160,13 +168,21 @@ fn instrument_hint_needs_an_identifier() {
 
 #[test]
 fn float_amount_rejects_record() {
-    let e = single_error(with(dividend(), "net_cash", json!({"amount": 20.4, "currency": "USD"})));
+    let e = single_error(with(
+        dividend(),
+        "net_cash",
+        json!({"amount": 20.4, "currency": "USD"}),
+    ));
     assert!(e.message.contains("strings"), "{}", e.message);
 }
 
 #[test]
 fn record_dates() {
-    let p = parse(batch(vec![with(dividend(), "settle_date", json!("2026-03-18"))]));
+    let p = parse(batch(vec![with(
+        dividend(),
+        "settle_date",
+        json!("2026-03-18"),
+    )]));
     let r = &p.records[0].item;
     assert_eq!(r.date.to_string(), "2026-03-14");
     assert_eq!(r.settle_date.unwrap().to_string(), "2026-03-18");
@@ -179,7 +195,8 @@ fn record_dates() {
 
 #[test]
 fn diagnostics_round_trip_and_are_not_records() {
-    let diag = json!({"severity": "warning", "message": "Unrecognized description", "locator": "row 87"});
+    let diag =
+        json!({"severity": "warning", "message": "Unrecognized description", "locator": "row 87"});
     let p = parse(json!({"schema": "mizan.import/1", "diagnostics": [diag.clone()]}));
     assert_eq!(p.diagnostics.len(), 1);
     assert!(p.records.is_empty());
@@ -245,7 +262,9 @@ fn spinoff_with_legs_validates() {
 fn legs_on_buy_rejected_and_spinoff_needs_legs() {
     let mut buy = spinoff();
     buy["kind"] = json!("buy");
-    assert!(single_error(buy).message.contains("only exchange and spinoff"));
+    assert!(single_error(buy)
+        .message
+        .contains("only exchange and spinoff"));
 
     let mut s = spinoff();
     s.as_object_mut().unwrap().remove("legs");
@@ -265,9 +284,16 @@ fn split(new: &str, old: &str) -> Value {
 fn split_ratios() {
     let p = parse(batch(vec![split("4", "1")]));
     let s = p.records[0].item.split.as_ref().unwrap();
-    assert_eq!((s.new.to_string(), s.old.to_string()), ("4".into(), "1".into()));
-    assert!(single_error(split("0", "1")).message.contains("must be positive"));
-    assert!(single_error(split("4", "-1")).message.contains("must be positive"));
+    assert_eq!(
+        (s.new.to_string(), s.old.to_string()),
+        ("4".into(), "1".into())
+    );
+    assert!(single_error(split("0", "1"))
+        .message
+        .contains("must be positive"));
+    assert!(single_error(split("4", "-1"))
+        .message
+        .contains("must be positive"));
 }
 
 // ---- 3.4 position transfers ----
@@ -288,7 +314,16 @@ fn position_in(with_basis: bool) -> Value {
 fn position_in_with_and_without_basis() {
     let p = parse(batch(vec![position_in(true), position_in(false)]));
     assert!(p.is_clean(), "{:?}", p.errors);
-    assert_eq!(p.records[0].item.cost_basis.as_ref().unwrap().amount.to_string(), "2000.00");
+    assert_eq!(
+        p.records[0]
+            .item
+            .cost_basis
+            .as_ref()
+            .unwrap()
+            .amount
+            .to_string(),
+        "2000.00"
+    );
     assert!(p.records[1].item.cost_basis.is_none());
 }
 
@@ -300,7 +335,9 @@ fn position_rules() {
 
     let mut out = position_in(true);
     out["kind"] = json!("position_out");
-    assert!(single_error(out).message.contains("only allowed on position_in"));
+    assert!(single_error(out)
+        .message
+        .contains("only allowed on position_in"));
 }
 
 // ---- 3.5 adjustments ----
@@ -312,7 +349,12 @@ fn adjustment_needs_memo() {
         "net_cash": {"amount": "0.01", "currency": "EUR"}
     });
     assert!(single_error(adj.clone()).message.contains("memo"));
-    assert!(parse(batch(vec![with(adj, "memo", json!("Rounding difference on opening balance"))])).is_clean());
+    assert!(parse(batch(vec![with(
+        adj,
+        "memo",
+        json!("Rounding difference on opening balance")
+    )]))
+    .is_clean());
 }
 
 // ---- 3.6 links ----
@@ -349,7 +391,9 @@ fn closing_balance_assertion_validates_and_empty_rejected() {
     empty.as_object_mut().unwrap().remove("positions");
     let p = parse(json!({"schema": "mizan.import/1", "assertions": [empty]}));
     assert!(p.assertions.is_empty());
-    assert!(p.errors[0].message.contains("at least one cash balance or position"));
+    assert!(p.errors[0]
+        .message
+        .contains("at least one cash balance or position"));
     assert_eq!(p.errors[0].item, ItemKind::Assertion);
 }
 
@@ -363,5 +407,8 @@ fn documented_example_is_a_clean_batch() {
     let end = start + doc[start..].find("```").unwrap();
     let p = parse_batch(&doc[start..end]).expect("example accepted");
     assert!(p.is_clean(), "{:?}", p.errors);
-    assert_eq!((p.records.len(), p.assertions.len(), p.diagnostics.len()), (1, 1, 1));
+    assert_eq!(
+        (p.records.len(), p.assertions.len(), p.diagnostics.len()),
+        (1, 1, 1)
+    );
 }

@@ -20,7 +20,14 @@ the committed file falls out of date.
 - **Every item is traceable** to an adapter, a file and a position in it.
 - **Amounts are magnitudes.** The kind gives the direction (a `buy` takes cash
   out, a `dividend` brings it in). Signed values are used only for
-  `legs[].quantity_delta`, adjustments and assertion balances.
+  `legs[].quantity_delta`, assertion balances, and the `net_cash` and
+  `quantity` of `internal_transfer` and `adjustment` (positive means into the
+  account).
+- **`fx_conversion`:** `gross` is the amount that leaves the account in one
+  currency, `net_cash` the amount that arrives in the other.
+- **Derivative kinds** (`option_exercise`, `option_assignment`,
+  `option_expiry`) move only the option position. Delivery of the underlying
+  and any cash come as their own trade records.
 
 ## Value types
 

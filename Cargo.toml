@@ -6,7 +6,7 @@ members = ["crates/mizan-import", "crates/mizan-core", "crates/mizan-storage", "
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-rust-version = "1.80"
+rust-version = "1.82"
 
 [workspace.dependencies]
 mizan-import = { path = "crates/mizan-import" }

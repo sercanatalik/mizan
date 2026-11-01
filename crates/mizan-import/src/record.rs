@@ -23,7 +23,9 @@ pub struct Provenance {
 }
 
 /// Closed set of record kinds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
     // Cash
@@ -198,9 +200,15 @@ pub struct InstrumentHint {
 impl InstrumentHint {
     /// True when at least one identifying field is present.
     pub fn has_identifier(&self) -> bool {
-        [&self.isin, &self.cusip, &self.figi, &self.symbol, &self.name]
-            .iter()
-            .any(|f| f.as_deref().is_some_and(|s| !s.trim().is_empty()))
+        [
+            &self.isin,
+            &self.cusip,
+            &self.figi,
+            &self.symbol,
+            &self.name,
+        ]
+        .iter()
+        .any(|f| f.as_deref().is_some_and(|s| !s.trim().is_empty()))
     }
 }
 

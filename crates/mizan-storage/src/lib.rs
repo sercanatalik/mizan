@@ -94,7 +94,9 @@ impl Store {
     }
 
     fn migrate(&mut self) -> Result<()> {
-        let current: i64 = self.conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        let current: i64 = self
+            .conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))?;
         for (i, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
             let tx = self.conn.transaction()?;
             tx.execute_batch(sql)?;
@@ -106,7 +108,9 @@ impl Store {
 
     /// Number of migrations applied.
     pub fn schema_version(&self) -> Result<i64> {
-        Ok(self.conn.pragma_query_value(None, "user_version", |r| r.get(0))?)
+        Ok(self
+            .conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))?)
     }
 
     // ---- accounts ----
@@ -114,7 +118,11 @@ impl Store {
     pub fn account_for_hint(&self, hint: &str) -> Result<Option<AccountId>> {
         Ok(self
             .conn
-            .query_row("SELECT account_id FROM account_hints WHERE hint = ?1", [hint], |r| r.get(0))
+            .query_row(
+                "SELECT account_id FROM account_hints WHERE hint = ?1",
+                [hint],
+                |r| r.get(0),
+            )
             .optional()?)
     }
 
@@ -123,7 +131,10 @@ impl Store {
         let tx = self.conn.transaction()?;
         tx.execute("INSERT INTO accounts (name) VALUES (?1)", [name])?;
         let id = tx.last_insert_rowid();
-        tx.execute("INSERT INTO account_hints (hint, account_id) VALUES (?1, ?2)", params![hint, id])?;
+        tx.execute(
+            "INSERT INTO account_hints (hint, account_id) VALUES (?1, ?2)",
+            params![hint, id],
+        )?;
         tx.commit()?;
         Ok(id)
     }
@@ -143,7 +154,11 @@ impl Store {
     pub fn asset_for_key(&self, instrument_key: &str) -> Result<Option<AssetId>> {
         Ok(self
             .conn
-            .query_row("SELECT id FROM assets WHERE instrument_key = ?1", [instrument_key], |r| r.get(0))
+            .query_row(
+                "SELECT id FROM assets WHERE instrument_key = ?1",
+                [instrument_key],
+                |r| r.get(0),
+            )
             .optional()?)
     }
 
@@ -214,7 +229,11 @@ impl Store {
                     serde_json::to_string(a)?,
                 ])?;
                 if let Some(res) = &na.result {
-                    ins_r.execute(params![tx.last_insert_rowid(), res.passed, res.detail.to_string()])?;
+                    ins_r.execute(params![
+                        tx.last_insert_rowid(),
+                        res.passed,
+                        res.detail.to_string()
+                    ])?;
                 }
             }
         }
@@ -228,14 +247,41 @@ impl Store {
         "id, batch_id, account_id, asset_id, fingerprint, source_order, basis_unknown, record_json";
 
     fn collect(&self, sql: &str, p: impl rusqlite::Params) -> Result<Vec<StoredActivity>> {
-        type RowTuple = (i64, BatchId, AccountId, Option<AssetId>, String, i64, bool, String);
+        type RowTuple = (
+            i64,
+            BatchId,
+            AccountId,
+            Option<AssetId>,
+            String,
+            i64,
+            bool,
+            String,
+        );
         let mut stmt = self.conn.prepare(sql)?;
         let rows = stmt.query_map(p, |r: &Row| -> rusqlite::Result<RowTuple> {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?))
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+                r.get(7)?,
+            ))
         })?;
         let mut out = Vec::new();
         for row in rows {
-            let (id, batch_id, account_id, asset_id, fingerprint, source_order, basis_unknown, json) = row?;
+            let (
+                id,
+                batch_id,
+                account_id,
+                asset_id,
+                fingerprint,
+                source_order,
+                basis_unknown,
+                json,
+            ) = row?;
             out.push(StoredActivity {
                 id,
                 batch_id,
@@ -251,7 +297,12 @@ impl Store {
     }
 
     /// Activities of an account with `from <= date <= to` (dates as `YYYY-MM-DD`), in date and source order.
-    pub fn activities_between(&self, account_id: AccountId, from: &str, to: &str) -> Result<Vec<StoredActivity>> {
+    pub fn activities_between(
+        &self,
+        account_id: AccountId,
+        from: &str,
+        to: &str,
+    ) -> Result<Vec<StoredActivity>> {
         self.collect(
             &format!(
                 "SELECT {} FROM activities WHERE account_id = ?1 AND date >= ?2 AND date <= ?3
@@ -263,13 +314,20 @@ impl Store {
     }
 
     /// Activities of an account up to and including `date`.
-    pub fn activities_until(&self, account_id: AccountId, date: &str) -> Result<Vec<StoredActivity>> {
+    pub fn activities_until(
+        &self,
+        account_id: AccountId,
+        date: &str,
+    ) -> Result<Vec<StoredActivity>> {
         self.activities_between(account_id, "0000-01-01", date)
     }
 
     pub fn activities_by_fingerprint(&self, fingerprint: &str) -> Result<Vec<StoredActivity>> {
         self.collect(
-            &format!("SELECT {} FROM activities WHERE fingerprint = ?1 ORDER BY id", Self::ACTIVITY_COLS),
+            &format!(
+                "SELECT {} FROM activities WHERE fingerprint = ?1 ORDER BY id",
+                Self::ACTIVITY_COLS
+            ),
             [fingerprint],
         )
     }
@@ -286,6 +344,8 @@ impl Store {
             "assertion_results",
         ];
         assert!(TABLES.contains(&table), "unknown table {table}");
-        Ok(self.conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))?)
+        Ok(self
+            .conn
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))?)
     }
 }

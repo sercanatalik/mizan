@@ -110,8 +110,13 @@ pub fn parse_batch_value(value: Value) -> Result<ParsedBatch, BatchError> {
         Some(other) => return Err(BatchError::UnsupportedVersion(other.to_string())),
     }
     for key in top.keys() {
-        if !matches!(key.as_str(), "schema" | "records" | "assertions" | "diagnostics") {
-            return Err(BatchError::Malformed(format!("unknown top-level field {key:?}")));
+        if !matches!(
+            key.as_str(),
+            "schema" | "records" | "assertions" | "diagnostics"
+        ) {
+            return Err(BatchError::Malformed(format!(
+                "unknown top-level field {key:?}"
+            )));
         }
     }
 
@@ -131,7 +136,12 @@ pub fn parse_batch_value(value: Value) -> Result<ParsedBatch, BatchError> {
             });
         match parsed {
             Ok(item) => out.records.push(Indexed { index, item }),
-            Err(message) => out.errors.push(ItemError { item: ItemKind::Record, index, locator, message }),
+            Err(message) => out.errors.push(ItemError {
+                item: ItemKind::Record,
+                index,
+                locator,
+                message,
+            }),
         }
     }
 
@@ -149,12 +159,20 @@ pub fn parse_batch_value(value: Value) -> Result<ParsedBatch, BatchError> {
             });
         match parsed {
             Ok(item) => out.assertions.push(Indexed { index, item }),
-            Err(message) => out.errors.push(ItemError { item: ItemKind::Assertion, index, locator, message }),
+            Err(message) => out.errors.push(ItemError {
+                item: ItemKind::Assertion,
+                index,
+                locator,
+                message,
+            }),
         }
     }
 
     for (index, item) in take_array(&mut top, "diagnostics")?.into_iter().enumerate() {
-        let locator = item.get("locator").and_then(Value::as_str).map(str::to_owned);
+        let locator = item
+            .get("locator")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         match serde_json::from_value::<Diagnostic>(item) {
             Ok(d) if d.locator.trim().is_empty() => out.errors.push(ItemError {
                 item: ItemKind::Diagnostic,
@@ -163,7 +181,12 @@ pub fn parse_batch_value(value: Value) -> Result<ParsedBatch, BatchError> {
                 message: "diagnostic locator must not be empty".into(),
             }),
             Ok(d) => out.diagnostics.push(d),
-            Err(e) => out.errors.push(ItemError { item: ItemKind::Diagnostic, index, locator, message: e.to_string() }),
+            Err(e) => out.errors.push(ItemError {
+                item: ItemKind::Diagnostic,
+                index,
+                locator,
+                message: e.to_string(),
+            }),
         }
     }
 
@@ -179,13 +202,20 @@ fn take_array(top: &mut Map<String, Value>, key: &str) -> Result<Vec<Value>, Bat
 }
 
 fn locator_of(item: &Value) -> Option<String> {
-    item.get("source")?.get("locator")?.as_str().map(str::to_owned)
+    item.get("source")?
+        .get("locator")?
+        .as_str()
+        .map(str::to_owned)
 }
 
 fn internal_id_in(obj: Option<&Value>, path: &str) -> Result<(), String> {
     if let Some(Value::Object(map)) = obj {
         if let Some(k) = INTERNAL_ID_KEYS.iter().find(|k| map.contains_key(**k)) {
-            let at = if path.is_empty() { String::new() } else { format!(" in \"{path}\"") };
+            let at = if path.is_empty() {
+                String::new()
+            } else {
+                format!(" in \"{path}\"")
+            };
             return Err(format!(
                 "field \"{k}\"{at} looks like an internal Mizan identifier; adapters must reference accounts and instruments by hints"
             ));
@@ -219,7 +249,9 @@ fn check_internal_ids_assertion(item: &Value) -> Result<(), String> {
 
 fn check_instrument(h: &InstrumentHint, path: &str, errs: &mut Vec<String>) {
     if !h.has_identifier() {
-        errs.push(format!("{path} needs at least one of isin, cusip, figi, symbol or name"));
+        errs.push(format!(
+            "{path} needs at least one of isin, cusip, figi, symbol or name"
+        ));
     }
 }
 
@@ -243,44 +275,67 @@ pub fn validate_record(r: &ImportRecord) -> Vec<String> {
 
     for c in &r.charges {
         if c.amount.amount.value() < zero {
-            errs.push(format!("charge amount must not be negative, got {}", c.amount.amount));
+            errs.push(format!(
+                "charge amount must not be negative, got {}",
+                c.amount.amount
+            ));
         }
     }
 
     if r.kind.carries_legs() {
         if r.legs.is_empty() {
-            errs.push(format!("{} records must carry at least one leg", r.kind.as_str()));
+            errs.push(format!(
+                "{} records must carry at least one leg",
+                r.kind.as_str()
+            ));
         }
         for (i, leg) in r.legs.iter().enumerate() {
             check_instrument(&leg.instrument, &format!("legs[{i}].instrument"), &mut errs);
             if let Some(s) = leg.cost_basis_share {
                 if s.value() < zero || s.value() > Decimal::ONE {
-                    errs.push(format!("legs[{i}].cost_basis_share must be between 0 and 1, got {s}"));
+                    errs.push(format!(
+                        "legs[{i}].cost_basis_share must be between 0 and 1, got {s}"
+                    ));
                 }
             }
         }
     } else if !r.legs.is_empty() {
-        errs.push(format!("only exchange and spinoff records may carry legs, not {}", r.kind.as_str()));
+        errs.push(format!(
+            "only exchange and spinoff records may carry legs, not {}",
+            r.kind.as_str()
+        ));
     }
 
     match (&r.kind, &r.split) {
         (Kind::Split, None) => errs.push("split records must carry a split ratio".into()),
         (Kind::Split, Some(s)) => {
             if s.new.value() <= zero || s.old.value() <= zero {
-                errs.push(format!("split ratio must be positive, got new {} / old {}", s.new, s.old));
+                errs.push(format!(
+                    "split ratio must be positive, got new {} / old {}",
+                    s.new, s.old
+                ));
             }
         }
-        (_, Some(_)) => errs.push(format!("only split records may carry a split ratio, not {}", r.kind.as_str())),
+        (_, Some(_)) => errs.push(format!(
+            "only split records may carry a split ratio, not {}",
+            r.kind.as_str()
+        )),
         _ => {}
     }
 
     if matches!(r.kind, Kind::PositionIn | Kind::PositionOut) {
         if r.instrument.is_none() {
-            errs.push(format!("{} records must name an instrument", r.kind.as_str()));
+            errs.push(format!(
+                "{} records must name an instrument",
+                r.kind.as_str()
+            ));
         }
         match r.quantity {
             None => errs.push(format!("{} records must carry a quantity", r.kind.as_str())),
-            Some(q) if q.value() <= zero => errs.push(format!("{} quantity must be positive, got {q}", r.kind.as_str())),
+            Some(q) if q.value() <= zero => errs.push(format!(
+                "{} quantity must be positive, got {q}",
+                r.kind.as_str()
+            )),
             _ => {}
         }
     }
@@ -297,7 +352,9 @@ pub fn validate_record(r: &ImportRecord) -> Vec<String> {
 
     for (i, l) in r.links.iter().enumerate() {
         if l.target.trim().is_empty() {
-            errs.push(format!("links[{i}].target must name an external identifier"));
+            errs.push(format!(
+                "links[{i}].target must name an external identifier"
+            ));
         }
     }
 
@@ -317,7 +374,11 @@ pub fn validate_assertion(a: &Assertion) -> Vec<String> {
         errs.push("an assertion must state at least one cash balance or position".into());
     }
     for (i, p) in a.positions.iter().enumerate() {
-        check_instrument(&p.instrument, &format!("positions[{i}].instrument"), &mut errs);
+        check_instrument(
+            &p.instrument,
+            &format!("positions[{i}].instrument"),
+            &mut errs,
+        );
     }
     errs
 }

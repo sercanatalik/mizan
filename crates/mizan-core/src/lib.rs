@@ -1,1 +1,22 @@
-//! Mizan import pipeline.
+//! Mizan import pipeline: hint resolution, consistency checks and ordering.
+
+pub mod consistency;
+pub mod fingerprint;
+pub mod ordering;
+pub mod pipeline;
+pub mod replay;
+pub mod resolve;
+pub mod review;
+
+pub use consistency::{check_record, ConsistencyWarning};
+pub use fingerprint::fingerprints;
+pub use ordering::{kind_priority, order, OrderInput, OrderingDiagnostic};
+pub use pipeline::{
+    commit, prepare, report, resolve_batch, CommitError, CommitResult, Decision, Decisions,
+    Outcome, Prepared, ReviewReport,
+};
+pub use replay::{check_assertion, replay, AssertionCheck, AssertionLine, Balances};
+pub use resolve::{
+    instrument_key, resolve_records, CreatePolicy, MappingResolver, ResolvedRecord, Resolver,
+};
+pub use review::ReviewItem;

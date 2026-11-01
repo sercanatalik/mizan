@@ -55,7 +55,10 @@ fn new_batch(account_id: AccountId, asset_id: AssetId) -> NewBatch {
         assertions: vec![NewAssertion {
             account_id,
             assertion: assertion(),
-            result: Some(AssertionResult { passed: true, detail: json!({"lines": []}) }),
+            result: Some(AssertionResult {
+                passed: true,
+                detail: json!({"lines": []}),
+            }),
         }],
     }
 }
@@ -64,7 +67,15 @@ fn new_batch(account_id: AccountId, asset_id: AssetId) -> NewBatch {
 fn migrations_apply_on_empty_database() {
     let store = Store::open_in_memory().unwrap();
     assert_eq!(store.schema_version().unwrap(), 1);
-    for t in ["accounts", "account_hints", "assets", "import_batches", "activities", "assertions", "assertion_results"] {
+    for t in [
+        "accounts",
+        "account_hints",
+        "assets",
+        "import_batches",
+        "activities",
+        "assertions",
+        "assertion_results",
+    ] {
         assert_eq!(store.count(t).unwrap(), 0, "{t}");
     }
 }
@@ -94,7 +105,10 @@ fn accounts_and_assets_by_hint() {
     s.map_account_hint("IBKR-U1", a).unwrap();
     assert_eq!(s.account_for_hint("IBKR-U1").unwrap(), Some(a));
 
-    let hint = InstrumentHint { isin: Some("US0378331005".into()), ..Default::default() };
+    let hint = InstrumentHint {
+        isin: Some("US0378331005".into()),
+        ..Default::default()
+    };
     let x = s.create_asset("isin:US0378331005", &hint).unwrap();
     assert_eq!(s.asset_for_key("isin:US0378331005").unwrap(), Some(x));
     assert_eq!(s.asset_for_key("isin:XX").unwrap(), None);
@@ -104,7 +118,10 @@ fn accounts_and_assets_by_hint() {
 fn committed_batch_round_trips() {
     let mut s = Store::open_in_memory().unwrap();
     let acct = s.create_account("IBKR", "U1").unwrap();
-    let hint = InstrumentHint { isin: Some("US0378331005".into()), ..Default::default() };
+    let hint = InstrumentHint {
+        isin: Some("US0378331005".into()),
+        ..Default::default()
+    };
     let asset = s.create_asset("isin:US0378331005", &hint).unwrap();
 
     let batch = new_batch(acct, asset);
@@ -116,10 +133,15 @@ fn committed_batch_round_trips() {
     let all = s.activities_until(acct, "2026-12-31").unwrap();
     assert_eq!(all.len(), 2);
     assert_eq!(all[0].batch_id, id);
-    assert_eq!(all[0].record, batch.activities[0].record, "record stored exactly as imported");
+    assert_eq!(
+        all[0].record, batch.activities[0].record,
+        "record stored exactly as imported"
+    );
     assert!(all[1].basis_unknown);
 
-    let march_first_half = s.activities_between(acct, "2026-03-01", "2026-03-15").unwrap();
+    let march_first_half = s
+        .activities_between(acct, "2026-03-01", "2026-03-15")
+        .unwrap();
     assert_eq!(march_first_half.len(), 1);
     assert_eq!(march_first_half[0].record.source.locator, "row 2");
 
@@ -132,7 +154,10 @@ fn committed_batch_round_trips() {
 fn failed_commit_leaves_no_partial_rows() {
     let mut s = Store::open_in_memory().unwrap();
     let acct = s.create_account("IBKR", "U1").unwrap();
-    let hint = InstrumentHint { isin: Some("US0378331005".into()), ..Default::default() };
+    let hint = InstrumentHint {
+        isin: Some("US0378331005".into()),
+        ..Default::default()
+    };
     let asset = s.create_asset("isin:US0378331005", &hint).unwrap();
 
     let mut batch = new_batch(acct, asset);
@@ -140,7 +165,16 @@ fn failed_commit_leaves_no_partial_rows() {
     batch.activities[1].account_id = 999;
     assert!(s.commit_batch(&batch).is_err());
 
-    for t in ["import_batches", "activities", "assertions", "assertion_results"] {
-        assert_eq!(s.count(t).unwrap(), 0, "{t} must be empty after a failed commit");
+    for t in [
+        "import_batches",
+        "activities",
+        "assertions",
+        "assertion_results",
+    ] {
+        assert_eq!(
+            s.count(t).unwrap(),
+            0,
+            "{t} must be empty after a failed commit"
+        );
     }
 }
