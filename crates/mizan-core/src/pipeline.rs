@@ -23,7 +23,7 @@ use thiserror::Error;
 use crate::consistency::{check_record, ConsistencyWarning};
 use crate::fingerprint::{fingerprints, is_external};
 use crate::ordering::{order, OrderInput, OrderingDiagnostic};
-use crate::replay::{check_assertion, replay, AssertionCheck};
+use crate::replay::{check_assertion, replay_with, AssertionCheck};
 use crate::resolve::{resolve_records, ResolvedRecord, Resolver};
 use crate::review::ReviewItem;
 
@@ -351,6 +351,7 @@ fn check_assertions(
     p: &Prepared,
     committed: &[&PreparedRecord],
 ) -> Result<Vec<AssertionCheck>, StorageError> {
+    let keys = store.key_map()?;
     let mut out = Vec::new();
     for (a, acct) in &p.assertions {
         let Some(acct) = *acct else {
@@ -385,7 +386,7 @@ fn check_assertions(
             .chain(pending.iter().map(|r| r.record()))
             .collect();
         let (ord, _) = order(&inputs);
-        let balances = replay(ord.into_iter().map(|i| all[i]));
+        let balances = replay_with(keys.clone(), ord.into_iter().map(|i| all[i]));
         out.push(check_assertion(a, &balances));
     }
     Ok(out)

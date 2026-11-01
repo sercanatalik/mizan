@@ -114,7 +114,7 @@ fn average_cost_after_partial_sale() {
         ],
         vec![],
     );
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     let p = position(&h, "isin:A");
     assert_eq!(p.quantity, "40");
     assert_eq!(p.cost.state, CostState::Known);
@@ -143,7 +143,7 @@ fn split_keeps_cost() {
         ],
         vec![],
     );
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     let p = position(&h, "isin:S");
     assert_eq!(
         (
@@ -189,7 +189,7 @@ fn spinoff_moves_cost_share() {
         ],
         vec![],
     );
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     assert_eq!(
         position(&h, "isin:NEW").cost.total.as_deref(),
         Some("304.08")
@@ -216,7 +216,7 @@ fn transfer_without_basis_is_unknown_not_zero() {
         )],
         vec![],
     );
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     let p = position(&h, "isin:V");
     assert_eq!(p.cost.state, CostState::UnknownBasis);
     assert_eq!(p.cost.unknown_units.as_deref(), Some("20"));
@@ -240,7 +240,7 @@ fn transfer_with_basis_and_return_of_capital() {
         Some(eur("100.00")),
     );
     import(&mut s, 'a', vec![pin, roc], vec![]);
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     assert_eq!(
         position(&h, "isin:V").cost.total.as_deref(),
         Some("1900.00")
@@ -282,7 +282,7 @@ fn mixed_currency_and_short_are_not_available() {
         ],
         vec![],
     );
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     let m = position(&h, "isin:M");
     assert_eq!(m.cost.state, CostState::MixedCurrency);
     assert!(m.cost.total.is_none());
@@ -315,7 +315,7 @@ fn exchange_moves_cost_to_received_instrument() {
         ],
         vec![],
     );
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     assert!(h.accounts[0]
         .positions
         .iter()
@@ -374,7 +374,7 @@ fn quantities_match_replay_closed_hidden_and_cash_listed() {
         ],
         vec![],
     );
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     let acct = &h.accounts[0];
     assert_eq!(acct.name, "Broker");
     assert_eq!(position(&h, "isin:A").quantity, "45");
@@ -422,7 +422,7 @@ fn failed_balance_check_flags_position_and_overview() {
     // Commit without confirming the ASML buy: the statement says 3, Mizan computes 1.
     import_file(&mut s, &e2e("batch.json"));
 
-    let h = holdings(&s).unwrap();
+    let h = holdings(&s, today()).unwrap();
     let asml = position(&h, "isin:NL0010273215");
     let flag = asml.check_flag.as_ref().expect("flagged");
     assert_eq!(
@@ -435,7 +435,7 @@ fn failed_balance_check_flags_position_and_overview() {
     assert_eq!(flag.as_of, "2026-09-30");
     assert_eq!(asml.name.as_deref(), Some("ASML Holding"));
 
-    let o = overview(&s).unwrap();
+    let o = overview(&s, today()).unwrap();
     let acct = &o.accounts[0];
     let check = acct.latest_check.as_ref().unwrap();
     assert!(!check.passed);
@@ -455,7 +455,7 @@ fn failed_balance_check_flags_position_and_overview() {
 #[test]
 fn overview_passing_no_check_and_in_order() {
     let mut s = Store::open_in_memory().unwrap();
-    assert!(overview(&s).unwrap().accounts.is_empty());
+    assert!(overview(&s, today()).unwrap().accounts.is_empty());
 
     import(
         &mut s,
@@ -479,7 +479,7 @@ fn overview_passing_no_check_and_in_order() {
         }],
         vec![],
     );
-    let o = overview(&s).unwrap();
+    let o = overview(&s, today()).unwrap();
     let broker = o.accounts.iter().find(|a| a.name == "Broker").unwrap();
     let check = broker.latest_check.as_ref().unwrap();
     assert!(check.passed);
@@ -534,4 +534,167 @@ fn net_contributions_by_period() {
     let m12 = get(Period::Last12Months);
     assert_eq!(m12.accounts[0].from.as_deref(), Some("2025-11-02"));
     assert_eq!(m12.accounts[0].by_currency[0].amount, "+8500.00");
+}
+
+fn today() -> mizan_import::Date {
+    mizan_import::Date::parse("2026-11-01").unwrap()
+}
+
+// ---- valuation in read models ----
+
+fn price(s: &mut Store, key: &str, date: &str, value: &str, ccy: &str) {
+    let id = s.asset_for_key(key).unwrap().unwrap();
+    s.upsert_provider_price(&mizan_storage::PriceRow {
+        asset_id: id,
+        date: date.into(),
+        source: "tefas".into(),
+        value: value.into(),
+        currency: ccy.into(),
+        fetched_at: "2026-11-01T09:00:00Z".into(),
+    })
+    .unwrap();
+}
+
+fn rate(s: &mut Store, ccy: &str, r: &str) {
+    s.upsert_fx_rate(
+        &mizan_storage::FxRow {
+            currency: ccy.into(),
+            date: "2026-10-31".into(),
+            source: "tcmb".into(),
+            try_per_unit: r.into(),
+        },
+        "t",
+    )
+    .unwrap();
+}
+
+#[test]
+fn holdings_values_priced_unpriced_and_no_rate() {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        vec![
+            rec(
+                "deposit",
+                "2026-01-02",
+                None,
+                None,
+                Some(json!({"amount": "500.00", "currency": "TRY"})),
+            ),
+            rec(
+                "buy",
+                "2026-01-05",
+                Some("AFT"),
+                Some("1000"),
+                Some(json!({"amount": "1000.00", "currency": "TRY"})),
+            ),
+            rec(
+                "buy",
+                "2026-01-06",
+                Some("NOPRICE"),
+                Some("3"),
+                Some(json!({"amount": "30.00", "currency": "TRY"})),
+            ),
+            rec(
+                "buy",
+                "2026-01-07",
+                Some("JP"),
+                Some("10"),
+                Some(json!({"amount": "50.00", "currency": "JPY"})),
+            ),
+        ],
+        vec![],
+    );
+    let h = holdings(&s, today()).unwrap();
+    assert!(!h.has_prices);
+    assert_eq!(h.base_currency, "TRY");
+    assert!(h.accounts[0]
+        .positions
+        .iter()
+        .all(|p| p.value_note.as_deref() == Some("no price")));
+
+    price(&mut s, "isin:AFT", "2026-10-30", "1.234567", "TRY");
+    price(&mut s, "isin:JP", "2026-10-15", "6.00", "JPY");
+    let h = holdings(&s, today()).unwrap();
+    assert!(h.has_prices);
+    let aft = position(&h, "isin:AFT");
+    let p = aft.price.as_ref().unwrap();
+    assert_eq!(
+        (p.value.as_str(), p.date.as_str(), p.stale),
+        ("1.234567", "2026-10-30", false)
+    );
+    assert_eq!(aft.value.as_deref(), Some("1234.57"));
+    assert_eq!(aft.base_value.as_deref(), Some("1234.57"));
+    let g = aft.gain.as_ref().unwrap();
+    assert_eq!((g.amount.as_str(), g.pct.as_str()), ("+234.57", "+23.5%"));
+
+    let jp = position(&h, "isin:JP");
+    assert!(jp.price.as_ref().unwrap().stale, "17 days old");
+    assert_eq!(jp.value.as_deref(), Some("60"));
+    assert_eq!(jp.value_note.as_deref(), Some("no exchange rate"));
+    assert!(jp.base_value.is_none());
+
+    let none = position(&h, "isin:NOPRICE");
+    assert_eq!(none.value_note.as_deref(), Some("no price"));
+
+    // Account total: AFT value + TRY cash (500 − 1000 − 30 = −530); JPY cash and JP excluded for lack of a rate.
+    let t = &h.accounts[0].total;
+    assert_eq!(t.amount, "704.57");
+    assert_eq!((t.excluded_no_price, t.excluded_no_rate), (1, 2));
+    assert_eq!(t.oldest_price.as_deref(), Some("2026-10-30"));
+    assert_eq!(
+        aft.weight.as_deref(),
+        Some("175.2"),
+        "weight against a total reduced by negative cash"
+    );
+
+    // A JPY rate makes the JP position and JPY cash count; base-currency switch needs no refresh.
+    rate(&mut s, "JPY", "0.215");
+    rate(&mut s, "EUR", "37.00");
+    let h = holdings(&s, today()).unwrap();
+    assert_eq!(position(&h, "isin:JP").base_value.as_deref(), Some("12.90"));
+    s.set_setting("base_currency", "EUR").unwrap();
+    let h = holdings(&s, today()).unwrap();
+    assert_eq!(h.base_currency, "EUR");
+    assert_eq!(
+        position(&h, "isin:AFT").base_value.as_deref(),
+        Some("33.37")
+    );
+    assert_eq!(h.total.currency, "EUR");
+
+    let o = overview(&s, today()).unwrap();
+    assert!(o.has_prices);
+    assert_eq!(o.total, h.total);
+    assert_eq!(o.accounts[0].total.as_ref().unwrap().currency, "EUR");
+}
+
+#[test]
+fn manual_price_wins_its_day_in_valuation() {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        vec![rec(
+            "buy",
+            "2026-01-05",
+            Some("AFT"),
+            Some("100"),
+            Some(json!({"amount": "100.00", "currency": "TRY"})),
+        )],
+        vec![],
+    );
+    price(&mut s, "isin:AFT", "2026-10-30", "1.20", "TRY");
+    let id = s.asset_for_key("isin:AFT").unwrap().unwrap();
+    s.add_manual_price(id, "2026-10-30", "1.25", "TRY", "now")
+        .unwrap();
+    let h = holdings(&s, today()).unwrap();
+    let p = position(&h, "isin:AFT");
+    assert_eq!(
+        (
+            p.price.as_ref().unwrap().source.as_str(),
+            p.value.as_deref()
+        ),
+        ("manual", Some("125.00"))
+    );
 }

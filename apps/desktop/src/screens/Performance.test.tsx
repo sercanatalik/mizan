@@ -8,12 +8,12 @@ import { EMPTY, invokeFrom, renderApp } from "../test/render";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
-const acct = (from: string, amount: string) => ({ account_id: 1, name: "Interactive Brokers", from, by_currency: [{ currency: "USD", amount }] });
+const acct = (from: string, amount: string) => ({ account_id: 1, name: "Interactive Brokers", from, by_currency: [{ currency: "USD", amount, base_value: null }] });
 const contributions: Contributions = {
   periods: [
-    { period: "ytd", to: "2026-11-01", accounts: [acct("2026-01-01", "+8500.00")], total: [{ currency: "USD", amount: "+8500.00" }] },
-    { period: "last12_months", to: "2026-11-01", accounts: [acct("2025-11-02", "+8500.00")], total: [{ currency: "USD", amount: "+8500.00" }] },
-    { period: "since_start", to: "2026-11-01", accounts: [acct("2025-03-01", "+10500.00")], total: [{ currency: "USD", amount: "+10500.00" }] },
+    { period: "ytd", to: "2026-11-01", accounts: [acct("2026-01-01", "+8500.00")], total: [{ currency: "USD", amount: "+8500.00", base_value: null }] },
+    { period: "last12_months", to: "2026-11-01", accounts: [acct("2025-11-02", "+8500.00")], total: [{ currency: "USD", amount: "+8500.00", base_value: null }] },
+    { period: "since_start", to: "2026-11-01", accounts: [acct("2025-03-01", "+10500.00")], total: [{ currency: "USD", amount: "+10500.00", base_value: null }] },
   ],
 };
 

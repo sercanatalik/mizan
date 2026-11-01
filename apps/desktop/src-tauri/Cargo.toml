@@ -17,13 +17,16 @@ tauri-build = { version = "2.7", features = [] }
 mizan-import.workspace = true
 mizan-core.workspace = true
 mizan-storage.workspace = true
+mizan-market.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 chrono = { workspace = true, features = ["clock"] }
+rust_decimal.workspace = true
 tauri = { version = "2.12", features = [] }
 tauri-plugin-dialog = "2"
 
 [dev-dependencies]
 mizan-core = { workspace = true, features = ["ts"] }
+mizan-market = { workspace = true, features = ["ts"] }
 ts-rs.workspace = true

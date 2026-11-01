@@ -18,14 +18,31 @@ use serde::{Deserialize, Serialize};
 use crate::consistency::tolerance;
 use crate::resolve::instrument_key;
 
+/// Raw instrument key → instrument key of the asset it was merged into.
+pub type KeyMap = std::collections::HashMap<String, String>;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Balances {
     pub cash: BTreeMap<Code, Decimal>,
-    /// Keyed by instrument key.
+    /// Keyed by canonical instrument key.
     pub positions: BTreeMap<String, Decimal>,
+    /// Merged-asset keys; positions of a merged key count toward its survivor.
+    pub keys: KeyMap,
 }
 
 impl Balances {
+    pub fn with_keys(keys: KeyMap) -> Self {
+        Balances {
+            keys,
+            ..Default::default()
+        }
+    }
+
+    /// The canonical key for a raw instrument key.
+    pub fn canon(&self, key: String) -> String {
+        self.keys.get(&key).cloned().unwrap_or(key)
+    }
+
     fn cash_add(&mut self, m: &Money, sign: Decimal) {
         *self.cash.entry(m.currency.clone()).or_default() += m.amount.value() * sign;
     }
@@ -50,7 +67,11 @@ impl Balances {
     pub fn apply(&mut self, r: &ImportRecord) {
         use Kind::*;
         let one = Decimal::ONE;
-        let key = r.instrument.as_ref().and_then(instrument_key);
+        let key = r
+            .instrument
+            .as_ref()
+            .and_then(instrument_key)
+            .map(|k| self.canon(k));
         let qty = r.quantity.map(|q| q.value()).unwrap_or_default();
 
         // Cash direction for kinds whose amounts are magnitudes.
@@ -86,7 +107,7 @@ impl Balances {
             }
             Exchange | Spinoff => {
                 for leg in &r.legs {
-                    if let Some(k) = instrument_key(&leg.instrument) {
+                    if let Some(k) = instrument_key(&leg.instrument).map(|k| self.canon(k)) {
                         self.pos_add(&k, leg.quantity_delta.value());
                     }
                 }
@@ -172,7 +193,15 @@ impl Balances {
 
 /// Replay records in the given order.
 pub fn replay<'a>(records: impl IntoIterator<Item = &'a ImportRecord>) -> Balances {
-    let mut b = Balances::default();
+    replay_with(KeyMap::new(), records)
+}
+
+/// Replay records in the given order, combining merged assets with their survivors.
+pub fn replay_with<'a>(
+    keys: KeyMap,
+    records: impl IntoIterator<Item = &'a ImportRecord>,
+) -> Balances {
+    let mut b = Balances::with_keys(keys);
     for r in records {
         b.apply(r);
     }
@@ -217,7 +246,7 @@ pub fn check_assertion(a: &Assertion, computed: &Balances) -> AssertionCheck {
         });
     }
     for p in &a.positions {
-        let key = instrument_key(&p.instrument).unwrap_or_default();
+        let key = computed.canon(instrument_key(&p.instrument).unwrap_or_default());
         let got = computed.position(&key);
         lines.push(AssertionLine {
             label: key,

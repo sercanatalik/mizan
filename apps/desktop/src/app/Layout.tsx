@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
 import { usePendingDecisions } from "../bridge/queries";
 import { SECTIONS, type Section } from "./sections";
+import { useMarketEvents } from "./useMarketEvents";
 import { useMenuEvents } from "./useMenuEvents";
 import s from "./layout.module.css";
 
@@ -57,6 +58,7 @@ export function Sidebar() {
 
 export function Layout() {
   useMenuEvents();
+  useMarketEvents();
   return (
     <div className={s.shell}>
       <Sidebar />

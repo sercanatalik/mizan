@@ -1,6 +1,7 @@
 //! Mizan desktop app: Tauri host for the import pipeline and read models.
 
 pub mod commands;
+pub mod market;
 pub mod menu;
 pub mod session;
 pub mod state;
@@ -30,12 +31,25 @@ pub fn run() {
             commands::cmd_overview,
             commands::cmd_contributions,
             commands::cmd_accounts,
+            market::cmd_refresh_prices,
+            market::cmd_settings,
+            market::cmd_set_provider_enabled,
+            market::cmd_set_base_currency,
+            market::cmd_set_refresh_on_start,
+            market::cmd_assets,
+            market::cmd_set_price_source,
+            market::cmd_accept_suggestion,
+            market::cmd_add_manual_price,
+            market::cmd_delete_manual_price,
+            market::cmd_merge_assets,
+            market::cmd_undo_merge,
         ])
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let store = state::open_store(&dir).map_err(std::io::Error::other)?;
-            app.manage(state::AppState::new(store));
+            app.manage(state::AppState::with_path(store, state::db_path(&dir)));
             menu::build(app)?;
+            market::spawn_start_refresh(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

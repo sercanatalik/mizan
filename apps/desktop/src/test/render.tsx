@@ -28,12 +28,25 @@ export function invokeFrom(responses: Responses) {
 
 export const EMPTY = {
   cmd_pending_decisions: 0,
-  cmd_overview: { accounts: [], attention: [] },
-  cmd_holdings: { accounts: [] },
+  cmd_overview: { base_currency: "TRY", accounts: [], attention: [], total: { currency: "TRY", amount: "0.00", excluded_no_price: 0, excluded_no_rate: 0, oldest_price: null }, has_prices: false },
+  cmd_holdings: { base_currency: "TRY", accounts: [], total: { currency: "TRY", amount: "0.00", excluded_no_price: 0, excluded_no_rate: 0, oldest_price: null }, has_prices: false },
   cmd_contributions: {
     periods: ["ytd", "last12_months", "since_start"].map((period) => ({ period, to: "2026-11-01", accounts: [], total: [] })),
   },
   cmd_import_current: null,
   cmd_import_history: [],
   cmd_accounts: [],
+  cmd_assets: [],
+  cmd_settings: {
+    base_currency: "TRY",
+    currencies: ["TRY", "USD", "EUR"],
+    refresh_on_start: true,
+    last_refresh_at: null,
+    providers: [
+      { id: "tefas", name: "TEFAS", supplies: "Turkish investment and pension fund prices (TRY)", enabled: true, last_success: null },
+      { id: "tcmb", name: "TCMB", supplies: "Exchange rates from the Turkish central bank", enabled: true, last_success: null },
+    ],
+    last_report: null,
+    refreshing: false,
+  },
 };

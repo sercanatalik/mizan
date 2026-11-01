@@ -45,6 +45,12 @@ npm run lint
 npm test
 ```
 
+## Network
+
+The app works offline. It goes online only to refresh prices (Refresh prices,
+or once on start when the last refresh is over a day old), and only to the
+providers enabled in Settings. See [market-data.md](market-data.md).
+
 ## Where your data lives
 
 The app creates one SQLite database, `mizan.db`, in the per-user app data
@@ -84,11 +90,16 @@ the screen says what is missing instead of showing a number.
 
 | Screen | Shows now | Waiting for |
 |---|---|---|
-| Overview | Accounts with their latest balance check; items needing attention | Market data for value and chart |
-| Holdings | Positions and cash per account; provisional average cost; flags | Market data for value, weights, gains |
+| Overview | Portfolio total and per-account totals in the base currency, accounts with their latest balance check, items needing attention | Returns engine for the value chart |
+| Holdings | Positions and cash per account; price (as of), value, weight, unrealized gain; provisional average cost; flags | |
 | Performance | Net contributions (deposits minus withdrawals) by period | Returns engine for TWR, MWR, benchmark |
 | Imports | Full review, commit, history and undo | Adapters for raw statement files |
-| Activity, Income, Accounts, Assets, Settings | Placeholder | Later changes |
+| Assets | Price source per asset, TEFAS suggestions, manual prices, merging duplicates | |
+| Settings | Base currency, market data providers (on/off), refresh on start, last refresh report | |
+| Activity, Income, Accounts | Placeholder | Later changes |
+
+Prices come from the built-in TEFAS and TCMB providers or from manual entry; see
+[market-data.md](market-data.md) for what is sent where, and how values are computed.
 
 Average cost is provisional: acquisitions add the cash they settled for,
 disposals remove cost pro rata, splits keep cost, spinoffs move their cost-basis

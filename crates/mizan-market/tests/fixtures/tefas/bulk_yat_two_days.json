@@ -1,0 +1,74 @@
+{
+ "errorCode": null,
+ "errorMessage": null,
+ "resultList": [
+  {
+   "fonKodu": "AAL",
+   "fonUnvan": "ATA PORTFÖY PARA PİYASASI (TL) FONU",
+   "tarih": "2026-04-10",
+   "fiyat": 3.115136,
+   "tedPaySayisi": 941506811,
+   "kisiSayisi": 4767,
+   "portfoyBuyukluk": 2932921886.93,
+   "borsaBultenFiyat": null,
+   "rn": 1
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2026-04-10",
+   "fiyat": 0.809019,
+   "tedPaySayisi": 28458976568,
+   "kisiSayisi": 144388,
+   "portfoyBuyukluk": 23023843715.76,
+   "borsaBultenFiyat": null,
+   "rn": 27
+  },
+  {
+   "fonKodu": "TCD",
+   "fonUnvan": "TACİRLER PORTFÖY DEĞIŞKEN FON",
+   "tarih": "2026-04-10",
+   "fiyat": 43.401655,
+   "tedPaySayisi": 32040037,
+   "kisiSayisi": 12687,
+   "portfoyBuyukluk": 1390590642.97,
+   "borsaBultenFiyat": null,
+   "rn": 1643
+  },
+  {
+   "fonKodu": "AAL",
+   "fonUnvan": "ATA PORTFÖY PARA PİYASASI (TL) FONU",
+   "tarih": "2026-04-09",
+   "fiyat": 3.111462,
+   "tedPaySayisi": 943851361,
+   "kisiSayisi": 4777,
+   "portfoyBuyukluk": 2936757252.17,
+   "borsaBultenFiyat": null,
+   "rn": 1980
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2026-04-09",
+   "fiyat": 0.828268,
+   "tedPaySayisi": 28321961495,
+   "kisiSayisi": 145116,
+   "portfoyBuyukluk": 23458179666.28,
+   "borsaBultenFiyat": null,
+   "rn": 2006
+  },
+  {
+   "fonKodu": "TCD",
+   "fonUnvan": "TACİRLER PORTFÖY DEĞIŞKEN FON",
+   "tarih": "2026-04-09",
+   "fiyat": 43.217663,
+   "tedPaySayisi": 32023180,
+   "kisiSayisi": 12689,
+   "portfoyBuyukluk": 1383967003.96,
+   "borsaBultenFiyat": null,
+   "rn": 3622
+  }
+ ],
+ "toplamSayi": 3958,
+ "toplamSayfa": 1
+}

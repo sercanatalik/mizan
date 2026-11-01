@@ -1,0 +1,25 @@
+[package]
+name = "mizan-market"
+description = "Market data providers for Mizan: TEFAS fund prices and TCMB exchange rates"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mizan-import.workspace = true
+mizan-storage.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+rust_decimal.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+quick-xml = "0.38"
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+ts-rs = { workspace = true, optional = true }
+
+[features]
+ts = ["dep:ts-rs"]
+
+[dev-dependencies]
+chrono = { workspace = true, features = ["clock"] }

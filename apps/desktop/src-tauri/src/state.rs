@@ -1,6 +1,7 @@
 //! Application state: the database and the open import review.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
 use mizan_storage::Store;
@@ -12,6 +13,11 @@ pub const DB_FILE: &str = "mizan.db";
 pub struct AppState {
     pub store: Mutex<Store>,
     pub session: Mutex<Option<ImportSession>>,
+    /// Database file; a refresh opens its own connection to it so screens stay responsive.
+    /// `None` for in-memory stores (tests), which then share `store`.
+    pub db_path: Option<PathBuf>,
+    /// Set while a price refresh runs; only one runs at a time.
+    pub refreshing: AtomicBool,
 }
 
 impl AppState {
@@ -19,6 +25,15 @@ impl AppState {
         AppState {
             store: Mutex::new(store),
             session: Mutex::new(None),
+            db_path: None,
+            refreshing: AtomicBool::new(false),
+        }
+    }
+
+    pub fn with_path(store: Store, db_path: PathBuf) -> Self {
+        AppState {
+            db_path: Some(db_path),
+            ..AppState::new(store)
         }
     }
 }
@@ -47,7 +62,7 @@ mod tests {
         {
             let mut store = open_store(&dir).unwrap();
             assert!(db_path(&dir).exists());
-            assert_eq!(store.schema_version().unwrap(), 1);
+            assert_eq!(store.schema_version().unwrap(), 2);
             store.create_account("IBKR", "U1").unwrap();
         }
         let store = open_store(&dir).unwrap();

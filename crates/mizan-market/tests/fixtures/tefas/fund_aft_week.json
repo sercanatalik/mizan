@@ -1,0 +1,52 @@
+{
+ "errorCode": null,
+ "errorMessage": null,
+ "resultList": [
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2026-10-30",
+   "fiyat": 0.959756,
+   "tedPaySayisi": 16666283447,
+   "kisiSayisi": 127406,
+   "portfoyBuyukluk": 15995571364.17,
+   "borsaBultenFiyat": null,
+   "rn": 1
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2026-10-28",
+   "fiyat": 0.955956,
+   "tedPaySayisi": 16668861625,
+   "kisiSayisi": 127888,
+   "portfoyBuyukluk": 15934697211.28,
+   "borsaBultenFiyat": null,
+   "rn": 2
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2026-10-27",
+   "fiyat": 0.935342,
+   "tedPaySayisi": 16702567838,
+   "kisiSayisi": 128098,
+   "portfoyBuyukluk": 15622609617.78,
+   "borsaBultenFiyat": null,
+   "rn": 3
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2026-10-26",
+   "fiyat": 0.927652,
+   "tedPaySayisi": 16733127541,
+   "kisiSayisi": 128316,
+   "portfoyBuyukluk": 15522526356.48,
+   "borsaBultenFiyat": null,
+   "rn": 4
+  }
+ ],
+ "toplamSayi": 4,
+ "toplamSayfa": 1
+}

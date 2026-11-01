@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, type PriceSourceKind } from "./api";
 import type { Decision } from "./generated/Decision";
 import type { ImportView } from "./generated/ImportView";
 
@@ -11,6 +11,10 @@ export const keys = {
   history: ["history"] as const,
   importSession: ["import"] as const,
   pending: ["pending"] as const,
+  settings: ["settings"] as const,
+  assets: ["assets"] as const,
+  /** Client-side flag set by the background refresh events. */
+  refreshing: ["refreshing"] as const,
 };
 
 export const useHoldings = () => useQuery({ queryKey: keys.holdings, queryFn: api.holdings });
@@ -20,6 +24,8 @@ export const useAccounts = () => useQuery({ queryKey: keys.accounts, queryFn: ap
 export const useImportHistory = () => useQuery({ queryKey: keys.history, queryFn: api.importHistory });
 export const useImportSession = () => useQuery({ queryKey: keys.importSession, queryFn: api.importCurrent });
 export const usePendingDecisions = () => useQuery({ queryKey: keys.pending, queryFn: api.pendingDecisions });
+export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: api.settings });
+export const useAssets = () => useQuery({ queryKey: keys.assets, queryFn: api.assets });
 
 /** A review changed: show the new view and refresh what depends on it. */
 function reviewChanged(qc: QueryClient, view: ImportView | null) {
@@ -84,4 +90,50 @@ export function useImportClose() {
 export function useImportUndo() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: api.importUndo, onSuccess: () => dataChanged(qc) });
+}
+
+/** Prices, rates or asset identity changed: refresh every view that shows values. */
+export function valuesChanged(qc: QueryClient) {
+  for (const k of [keys.holdings, keys.overview, keys.assets, keys.settings]) {
+    void qc.invalidateQueries({ queryKey: k });
+  }
+}
+
+export function useRefreshPrices() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: api.refreshPrices, onSettled: () => valuesChanged(qc) });
+}
+
+export function useSettingsMutations() {
+  const qc = useQueryClient();
+  return {
+    setProviderEnabled: useMutation({
+      mutationFn: (a: { id: string; enabled: boolean }) => api.setProviderEnabled(a.id, a.enabled),
+      onSuccess: () => void qc.invalidateQueries({ queryKey: keys.settings }),
+    }),
+    setBaseCurrency: useMutation({ mutationFn: api.setBaseCurrency, onSuccess: () => valuesChanged(qc) }),
+    setRefreshOnStart: useMutation({
+      mutationFn: api.setRefreshOnStart,
+      onSuccess: () => void qc.invalidateQueries({ queryKey: keys.settings }),
+    }),
+  };
+}
+
+export function useAssetMutations() {
+  const qc = useQueryClient();
+  const done = () => valuesChanged(qc);
+  return {
+    setPriceSource: useMutation({
+      mutationFn: (a: { assetId: number; kind: PriceSourceKind; fundCode: string | null }) => api.setPriceSource(a.assetId, a.kind, a.fundCode),
+      onSuccess: done,
+    }),
+    acceptSuggestion: useMutation({ mutationFn: api.acceptSuggestion, onSuccess: done }),
+    addManualPrice: useMutation({
+      mutationFn: (a: { assetId: number; date: string; value: string; currency: string }) => api.addManualPrice(a.assetId, a.date, a.value, a.currency),
+      onSuccess: done,
+    }),
+    deleteManualPrice: useMutation({ mutationFn: (a: { assetId: number; date: string }) => api.deleteManualPrice(a.assetId, a.date), onSuccess: done }),
+    mergeAssets: useMutation({ mutationFn: (a: { from: number; into: number }) => api.mergeAssets(a.from, a.into), onSuccess: done }),
+    undoMerge: useMutation({ mutationFn: api.undoMerge, onSuccess: done }),
+  };
 }

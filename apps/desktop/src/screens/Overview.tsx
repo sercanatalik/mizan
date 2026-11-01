@@ -6,6 +6,15 @@ import { useOverview } from "../bridge/queries";
 import { Card, EmptyState } from "../ui";
 import { longDate } from "./format";
 import { NoData } from "./NoData";
+import { RefreshButton } from "./RefreshButton";
+import type { TotalView } from "../bridge/generated/TotalView";
+
+function excluded(t: TotalView): string | null {
+  const parts = [];
+  if (t.excluded_no_price) parts.push(`${t.excluded_no_price} position${t.excluded_no_price === 1 ? "" : "s"} without a price`);
+  if (t.excluded_no_rate) parts.push(`${t.excluded_no_rate} without an exchange rate`);
+  return parts.length ? `excludes ${parts.join(" and ")}` : null;
+}
 
 function statusText(a: AccountStatus): { text: string; warn: boolean } {
   const c = a.latest_check;
@@ -48,9 +57,24 @@ export function Overview() {
   }
   return (
     <>
-      <PageHeader title="Overview" subtitle="All accounts" />
+      <PageHeader title="Overview" subtitle="All accounts" actions={<RefreshButton />} />
       <Card title="Portfolio value" label="Portfolio value">
-        <EmptyState title="Market data needed" message="Portfolio value, daily change and the value chart appear once market prices are available." />
+        {data.has_prices ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span className="num" style={{ fontSize: 30, fontWeight: 500, letterSpacing: "-0.02em" }} data-testid="portfolio-total">
+              {data.total.amount} {data.total.currency}
+            </span>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {data.total.oldest_price ? `Prices as of ${longDate(data.total.oldest_price)} or later` : null}
+              {excluded(data.total) ? ` · ${excluded(data.total)}` : ""}
+            </span>
+          </div>
+        ) : (
+          <EmptyState title="Prices needed" message="Refresh prices to see the portfolio value. Assign price sources on the Assets screen." action={{ to: "/assets", label: "Go to Assets" }} />
+        )}
+      </Card>
+      <Card title="Value over time" label="Value chart">
+        <EmptyState title="Returns engine needed" message="The value history needs the returns engine, which comes in a later version." />
       </Card>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 14, alignItems: "start" }}>
         <Card title="Accounts" label="Accounts">
@@ -70,8 +94,15 @@ export function Overview() {
                       {st.text}
                     </div>
                   </div>
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    {a.activity_count} activit{a.activity_count === 1 ? "y" : "ies"}
+                  <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                    {data.has_prices && a.total && (
+                      <span className="num" style={{ fontWeight: 500 }} data-testid="account-total">
+                        {a.total.amount} {a.total.currency}
+                      </span>
+                    )}
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      {a.activity_count} activit{a.activity_count === 1 ? "y" : "ies"}
+                    </span>
                   </span>
                 </div>
               );

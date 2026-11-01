@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { keys, useHoldings, useImportCommit, useImportDecide, useImportUndo, useResolveHint } from "./queries";
+import { keys, useAssetMutations, useHoldings, useImportCommit, useImportDecide, useImportUndo, useRefreshPrices, useResolveHint, useSettingsMutations } from "./queries";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const mockInvoke = vi.mocked(invoke);
@@ -62,4 +62,38 @@ test("undo passes batch_id", async () => {
   const { result } = renderHook(() => useImportUndo(), { wrapper });
   await act(() => result.current.mutateAsync(12));
   expect(mockInvoke).toHaveBeenCalledWith("cmd_import_undo", { batch_id: 12 });
+});
+
+test("market wrappers send snake_case args and refresh values", async () => {
+  mockInvoke.mockResolvedValue(undefined);
+  const { qc, wrapper } = setup();
+  const spy = vi.spyOn(qc, "invalidateQueries");
+  const { result } = renderHook(() => useAssetMutations(), { wrapper });
+  await act(() => result.current.setPriceSource.mutateAsync({ assetId: 3, kind: "tefas", fundCode: "AFT" }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_price_source", { asset_id: 3, kind: "tefas", fund_code: "AFT" });
+  await act(() => result.current.addManualPrice.mutateAsync({ assetId: 3, date: "2026-10-30", value: "1.25", currency: "TRY" }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_add_manual_price", { asset_id: 3, date: "2026-10-30", value: "1.25", currency: "TRY" });
+  await act(() => result.current.mergeAssets.mutateAsync({ from: 4, into: 3 }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_merge_assets", { from: 4, into: 3 });
+  for (const k of [keys.holdings, keys.overview, keys.assets]) expect(spy).toHaveBeenCalledWith({ queryKey: k });
+});
+
+test("refresh calls the command and refreshes every value view", async () => {
+  mockInvoke.mockResolvedValue({ started_at: "a", finished_at: "b", sources: [] });
+  const { qc, wrapper } = setup();
+  const spy = vi.spyOn(qc, "invalidateQueries");
+  const { result } = renderHook(() => useRefreshPrices(), { wrapper });
+  await act(() => result.current.mutateAsync());
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_refresh_prices");
+  for (const k of [keys.holdings, keys.overview, keys.assets, keys.settings]) expect(spy).toHaveBeenCalledWith({ queryKey: k });
+});
+
+test("settings mutations", async () => {
+  mockInvoke.mockResolvedValue(undefined);
+  const { wrapper } = setup();
+  const { result } = renderHook(() => useSettingsMutations(), { wrapper });
+  await act(() => result.current.setProviderEnabled.mutateAsync({ id: "tefas", enabled: false }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_provider_enabled", { id: "tefas", enabled: false });
+  await act(() => result.current.setBaseCurrency.mutateAsync("EUR"));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_base_currency", { currency: "EUR" });
 });

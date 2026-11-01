@@ -97,7 +97,7 @@ impl Resolver for MappingResolver<'_> {
             return Ok(None);
         };
         if let Some(id) = self.store.asset_for_key(&key)? {
-            return Ok(Some(id));
+            return Ok(Some(self.store.canonical_asset(id)?));
         }
         if self.policy.create_assets {
             return self.store.create_asset(&key, hint).map(Some);
@@ -215,7 +215,7 @@ impl Resolver for PreviewResolver<'_> {
             return Ok(None);
         };
         if let Some(id) = self.store.asset_for_key(&key)? {
-            return Ok(Some(id));
+            return Ok(Some(self.store.canonical_asset(id)?));
         }
         if !self.policy.create_assets {
             return Ok(None);

@@ -13,8 +13,14 @@ pub type AccountId = i64;
 pub type AssetId = i64;
 pub type BatchId = i64;
 
+pub mod market;
+pub use market::*;
+
 /// Migrations in order. The database's `user_version` records how many have run.
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_init.sql"),
+    include_str!("../migrations/0002_market.sql"),
+];
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -24,6 +30,8 @@ pub enum StorageError {
     Json(#[from] serde_json::Error),
     #[error("{0} not found")]
     NotFound(String),
+    #[error("invalid request: {0}")]
+    Invalid(String),
 }
 
 pub type Result<T> = std::result::Result<T, StorageError>;
@@ -378,7 +386,7 @@ impl Store {
 
     /// Row counts per table, for tests and diagnostics.
     pub fn count(&self, table: &str) -> Result<i64> {
-        const TABLES: [&str; 7] = [
+        const TABLES: [&str; 13] = [
             "accounts",
             "account_hints",
             "assets",
@@ -386,6 +394,12 @@ impl Store {
             "activities",
             "assertions",
             "assertion_results",
+            "settings",
+            "asset_merges",
+            "price_sources",
+            "prices",
+            "fx_rates",
+            "refresh_log",
         ];
         assert!(TABLES.contains(&table), "unknown table {table}");
         Ok(self

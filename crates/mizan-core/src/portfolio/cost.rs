@@ -129,10 +129,23 @@ fn settled_cost(r: &ImportRecord) -> Option<Money> {
 /// Average-cost state for every instrument of one account.
 #[derive(Clone, Debug, Default)]
 pub struct CostBook {
+    /// Keyed by canonical instrument key.
     pub lots: BTreeMap<String, Lot>,
+    pub keys: crate::replay::KeyMap,
 }
 
 impl CostBook {
+    pub fn with_keys(keys: crate::replay::KeyMap) -> Self {
+        CostBook {
+            keys,
+            ..Default::default()
+        }
+    }
+
+    fn canon(&self, key: String) -> String {
+        self.keys.get(&key).cloned().unwrap_or(key)
+    }
+
     fn lot(&mut self, key: &str) -> &mut Lot {
         self.lots.entry(key.to_owned()).or_default()
     }
@@ -140,7 +153,11 @@ impl CostBook {
     /// Apply one record. Records must arrive in processing order.
     pub fn apply(&mut self, r: &ImportRecord) {
         use Kind::*;
-        let key = r.instrument.as_ref().and_then(instrument_key);
+        let key = r
+            .instrument
+            .as_ref()
+            .and_then(instrument_key)
+            .map(|k| self.canon(k));
         let qty = r.quantity.map(|q| q.value()).unwrap_or_default();
 
         match r.kind {
@@ -223,7 +240,7 @@ impl CostBook {
         };
         let mut moved_total = Decimal::ZERO;
         for leg in &r.legs {
-            let Some(k) = instrument_key(&leg.instrument) else {
+            let Some(k) = instrument_key(&leg.instrument).map(|k| self.canon(k)) else {
                 continue;
             };
             let delta = leg.quantity_delta.value();
@@ -262,7 +279,7 @@ impl CostBook {
         let mut pool_unknown = false;
         let mut received = Vec::new();
         for leg in &r.legs {
-            let Some(k) = instrument_key(&leg.instrument) else {
+            let Some(k) = instrument_key(&leg.instrument).map(|k| self.canon(k)) else {
                 continue;
             };
             let delta = leg.quantity_delta.value();

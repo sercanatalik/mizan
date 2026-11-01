@@ -155,16 +155,16 @@ pub fn pending_decisions(state: &AppState) -> Result<usize, AppError> {
         .unwrap_or(0))
 }
 
-pub fn holdings(state: &AppState) -> Result<Holdings, AppError> {
+pub fn holdings(state: &AppState, today: Date) -> Result<Holdings, AppError> {
     let store = state.store.lock().map_err(store_err)?;
-    Ok(portfolio::holdings(&store)?)
+    Ok(portfolio::holdings(&store, today)?)
 }
 
 /// Overview plus the open review's pending decisions, which only the app knows about.
-pub fn overview(state: &AppState) -> Result<Overview, AppError> {
+pub fn overview(state: &AppState, today: Date) -> Result<Overview, AppError> {
     let mut o = {
         let store = state.store.lock().map_err(store_err)?;
-        portfolio::overview(&store)?
+        portfolio::overview(&store, today)?
     };
     let pending = pending_decisions(state)?;
     if pending > 0 {
@@ -279,12 +279,12 @@ pub async fn cmd_pending_decisions(app: AppHandle) -> Result<usize, AppError> {
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn cmd_holdings(app: AppHandle) -> Result<Holdings, AppError> {
-    blocking(app, holdings).await
+    blocking(app, |s| holdings(s, today())).await
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn cmd_overview(app: AppHandle) -> Result<Overview, AppError> {
-    blocking(app, overview).await
+    blocking(app, |s| overview(s, today())).await
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -309,6 +309,10 @@ mod tests {
             .join(name)
     }
 
+    fn day() -> Date {
+        Date::parse("2026-11-01").unwrap()
+    }
+
     fn seeded() -> AppState {
         let state = AppState::new(Store::open_in_memory().unwrap());
         import_open(&state, fixture("seed.json")).unwrap();
@@ -327,7 +331,7 @@ mod tests {
             "commit closes the review"
         );
 
-        let h = holdings(&state).unwrap();
+        let h = holdings(&state, day()).unwrap();
         assert_eq!(h.accounts[0].name, "Degiro");
         assert_eq!(h.accounts[0].positions[0].quantity, "2");
 
@@ -344,14 +348,14 @@ mod tests {
     #[test]
     fn overview_includes_pending_decisions_from_open_review() {
         let state = seeded();
-        assert!(!overview(&state)
+        assert!(!overview(&state, day())
             .unwrap()
             .attention
             .iter()
             .any(|a| matches!(a, AttentionItem::PendingDecisions { .. })));
         import_open(&state, fixture("batch.json")).unwrap();
         assert_eq!(pending_decisions(&state).unwrap(), 1);
-        let o = overview(&state).unwrap();
+        let o = overview(&state, day()).unwrap();
         assert!(matches!(
             o.attention[0],
             AttentionItem::PendingDecisions { count: 1 }
@@ -366,7 +370,9 @@ mod tests {
         let id = import_history(&state).unwrap()[0].id;
         import_undo(&state, id).unwrap();
         assert!(import_history(&state).unwrap().is_empty());
-        assert!(holdings(&state).unwrap().accounts[0].positions.is_empty());
+        assert!(holdings(&state, day()).unwrap().accounts[0]
+            .positions
+            .is_empty());
         assert!(import_undo(&state, id).is_err());
         assert!(import_commit(&state).is_err(), "no review open");
     }

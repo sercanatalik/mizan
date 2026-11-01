@@ -13,6 +13,9 @@ use crate::consistency::minor_digits;
 use crate::ordering::{order, OrderInput};
 use crate::replay::{AssertionLine, Balances};
 use crate::resolve::instrument_key;
+use crate::valuation::{
+    base_currency, is_stale, money, signed_money, signed_pct, unrealized, Gain, Market, Total,
+};
 use cost::{CostBook, CostStatus};
 
 /// An account's activities in deterministic processing order.
@@ -52,7 +55,7 @@ fn class_name(c: Option<ClassHint>) -> String {
 
 // ---------------------------------------------------------------- holdings
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum CostState {
@@ -102,6 +105,65 @@ pub struct Position {
     pub quantity: String,
     pub cost: CostView,
     pub check_flag: Option<CheckFlag>,
+    /// Latest price on or before today; `None` when the asset has no price.
+    pub price: Option<PriceView>,
+    /// Quantity × price, in the price currency.
+    pub value: Option<String>,
+    /// Value in the base currency; `None` without a price or exchange rate.
+    pub base_value: Option<String>,
+    /// Share of the account's base-currency total, in percent.
+    pub weight: Option<String>,
+    pub gain: Option<GainView>,
+    /// Why there is no value: "no price" or "no exchange rate".
+    pub value_note: Option<String>,
+    /// Why there is no unrealized gain.
+    pub gain_note: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct PriceView {
+    pub value: String,
+    pub currency: String,
+    pub date: String,
+    /// Older than seven days.
+    pub stale: bool,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct GainView {
+    /// Signed amount in the price currency, e.g. `+234.57`.
+    pub amount: String,
+    pub currency: String,
+    /// Signed percentage of cost, e.g. `+23.5%`.
+    pub pct: String,
+}
+
+/// A total in the base currency and what it leaves out.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct TotalView {
+    pub currency: String,
+    pub amount: String,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub excluded_no_price: usize,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub excluded_no_rate: usize,
+    pub oldest_price: Option<String>,
+}
+
+impl TotalView {
+    fn of(t: &Total) -> Self {
+        TotalView {
+            currency: t.base.to_string(),
+            amount: money(t.sum, &t.base),
+            excluded_no_price: t.excluded_no_price,
+            excluded_no_rate: t.excluded_no_rate,
+            oldest_price: t.oldest_price.map(|d| d.to_string()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -109,6 +171,8 @@ pub struct Position {
 pub struct CashLine {
     pub currency: String,
     pub amount: String,
+    /// Amount in the base currency, when a rate exists. Not set for contributions.
+    pub base_value: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -119,12 +183,17 @@ pub struct AccountHoldings {
     pub name: String,
     pub positions: Vec<Position>,
     pub cash: Vec<CashLine>,
+    pub total: TotalView,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Holdings {
+    pub base_currency: String,
     pub accounts: Vec<AccountHoldings>,
+    pub total: TotalView,
+    /// Whether any held asset has a stored price.
+    pub has_prices: bool,
 }
 
 fn failed_lines(
@@ -142,32 +211,38 @@ fn failed_lines(
     Ok(out)
 }
 
-/// Positions and cash per account from all stored activities.
-pub fn holdings(store: &Store) -> Result<Holdings, StorageError> {
+/// Positions, cash and values per account from all stored activities, prices and rates.
+pub fn holdings(store: &Store, today: Date) -> Result<Holdings, StorageError> {
+    let base = base_currency(store)?;
+    let mut grand = Total::new(base.clone());
+    let mut has_prices = false;
     let assets: HashMap<String, AssetRow> = store
         .list_assets()?
         .into_iter()
         .map(|a| (a.instrument_key.clone(), a))
         .collect();
+    let keys = store.key_map()?;
     let mut accounts = Vec::new();
 
     for AccountRow { id, name, .. } in store.list_accounts()? {
         let stored = store.all_activities(id)?;
         let recs = ordered(&stored);
-        let mut balances = Balances::default();
-        let mut book = CostBook::default();
+        let mut balances = Balances::with_keys(keys.clone());
+        let mut book = CostBook::with_keys(keys.clone());
         let mut last_hint = HashMap::new();
         for r in &recs {
             balances.apply(r);
             book.apply(r);
             if let Some(h) = &r.instrument {
                 if let Some(k) = instrument_key(h) {
-                    last_hint.insert(k, h.clone());
+                    last_hint.insert(balances.canon(k), h.clone());
                 }
             }
         }
         let failed = failed_lines(store, id)?;
 
+        let mut total = Total::new(base.clone());
+        let mut base_values: Vec<Option<Decimal>> = Vec::new();
         let mut positions = Vec::new();
         for (key, qty) in &balances.positions {
             if qty.is_zero() {
@@ -210,7 +285,64 @@ pub fn holdings(store: &Store) -> Result<Holdings, StorageError> {
                         as_of: as_of.clone(),
                         batch_id: *b,
                     });
+            // Valuation.
+            let quote = match asset {
+                Some(a) => store.quote(a.id, today)?,
+                None => None,
+            };
+            has_prices |= quote.is_some();
+            let (price, value, base_value, value_note, gain, gain_note) = match &quote {
+                None => {
+                    total.no_price();
+                    (None, None, None, Some("no price".to_string()), None, None)
+                }
+                Some(q) => {
+                    let v = *qty * q.value;
+                    let bv = total.add_priced(store, v, &q.currency, q.date, today)?;
+                    let cost_known = known
+                        .then(|| lot.currency.as_ref().map(|c| (lot.cost, c)))
+                        .flatten();
+                    let (gain, gain_note) = match unrealized(
+                        cost_known,
+                        lot.unknown_units > Decimal::ZERO,
+                        v,
+                        &q.currency,
+                    ) {
+                        Gain::Amount { amount, pct } => (
+                            Some(GainView {
+                                amount: signed_money(amount, &q.currency),
+                                currency: q.currency.to_string(),
+                                pct: signed_pct(pct),
+                            }),
+                            None,
+                        ),
+                        Gain::NotAvailable(why) => (None, Some(format!("not available: {why}"))),
+                    };
+                    (
+                        Some(PriceView {
+                            value: q.value.normalize().to_string(),
+                            currency: q.currency.to_string(),
+                            date: q.date.to_string(),
+                            stale: is_stale(q.date, today),
+                            source: q.source.clone(),
+                        }),
+                        Some(money(v, &q.currency)),
+                        bv,
+                        bv.is_none().then(|| "no exchange rate".to_string()),
+                        gain,
+                        gain_note,
+                    )
+                }
+            };
+            base_values.push(base_value);
             positions.push(Position {
+                price,
+                value,
+                base_value: base_value.map(|b| money(b, &base)),
+                weight: None,
+                gain,
+                value_note,
+                gain_note,
                 instrument_key: key.clone(),
                 asset_id: asset.map(|a| a.id),
                 symbol: hint.symbol.clone(),
@@ -227,23 +359,40 @@ pub fn holdings(store: &Store) -> Result<Holdings, StorageError> {
                 check_flag,
             });
         }
-        let cash = balances
-            .cash
-            .iter()
-            .filter(|(_, v)| !v.is_zero())
-            .map(|(c, v)| CashLine {
+        let mut cash = Vec::new();
+        for (c, v) in balances.cash.iter().filter(|(_, v)| !v.is_zero()) {
+            let bv = total.add(store, *v, c, today)?;
+            cash.push(CashLine {
                 currency: c.to_string(),
                 amount: money_str(*v, c),
-            })
-            .collect();
+                base_value: bv.map(|b| money(b, &base)),
+            });
+        }
+        // Weights need the account total, so they come after all values are known.
+        if !total.sum.is_zero() {
+            for (p, bv) in positions.iter_mut().zip(&base_values) {
+                p.weight = bv.map(|b| {
+                    (b / total.sum * Decimal::ONE_HUNDRED)
+                        .round_dp(1)
+                        .to_string()
+                });
+            }
+        }
+        grand.merge(&total);
         accounts.push(AccountHoldings {
             account_id: id,
             name,
             positions,
             cash,
+            total: TotalView::of(&total),
         });
     }
-    Ok(Holdings { accounts })
+    Ok(Holdings {
+        base_currency: base.to_string(),
+        accounts,
+        total: TotalView::of(&grand),
+        has_prices,
+    })
 }
 
 // ---------------------------------------------------------------- overview
@@ -278,6 +427,8 @@ pub struct AccountStatus {
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub activity_count: i64,
     pub latest_check: Option<CheckSummary>,
+    /// Account value in the base currency.
+    pub total: Option<TotalView>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -308,8 +459,13 @@ pub enum AttentionItem {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Overview {
+    pub base_currency: String,
     pub accounts: Vec<AccountStatus>,
     pub attention: Vec<AttentionItem>,
+    /// Portfolio total in the base currency.
+    pub total: TotalView,
+    /// Whether any held asset has a stored price.
+    pub has_prices: bool,
 }
 
 fn display_for(key: &str, assets: &HashMap<String, AssetRow>) -> String {
@@ -327,13 +483,13 @@ fn display_for(key: &str, assets: &HashMap<String, AssetRow>) -> String {
 }
 
 /// Account import status and items needing attention.
-pub fn overview(store: &Store) -> Result<Overview, StorageError> {
+pub fn overview(store: &Store, today: Date) -> Result<Overview, StorageError> {
     let assets: HashMap<String, AssetRow> = store
         .list_assets()?
         .into_iter()
         .map(|a| (a.instrument_key.clone(), a))
         .collect();
-    let hold = holdings(store)?;
+    let hold = holdings(store, today)?;
     let mut accounts = Vec::new();
     let mut attention = Vec::new();
 
@@ -374,6 +530,11 @@ pub fn overview(store: &Store) -> Result<Overview, StorageError> {
             name: a.name.clone(),
             activity_count: store.all_activities(a.id)?.len() as i64,
             latest_check,
+            total: hold
+                .accounts
+                .iter()
+                .find(|h| h.account_id == a.id)
+                .map(|h| h.total.clone()),
         });
     }
 
@@ -395,8 +556,11 @@ pub fn overview(store: &Store) -> Result<Overview, StorageError> {
         }
     }
     Ok(Overview {
+        base_currency: hold.base_currency.clone(),
         accounts,
         attention,
+        total: hold.total.clone(),
+        has_prices: hold.has_prices,
     })
 }
 
@@ -467,6 +631,7 @@ fn lines(map: &BTreeMap<Code, Decimal>) -> Vec<CashLine> {
                 } else {
                     s
                 },
+                base_value: None,
             }
         })
         .collect()

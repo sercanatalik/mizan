@@ -36,6 +36,7 @@ jobs:
         run: cargo fmt --all --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # Tests use recorded fixtures; live market-data checks are #[ignore]d and never run here.
       - name: Test
         run: cargo test --workspace
       - name: TypeScript bindings are up to date

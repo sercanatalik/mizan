@@ -77,7 +77,7 @@ test("native menu navigate event switches screens", async () => {
   expect(router.state.location.state).toHaveProperty("pick");
 });
 
-test.each(["Activity", "Income", "Accounts", "Assets", "Settings"])("%s is a placeholder without figures", async (title) => {
+test.each(["Activity", "Income", "Accounts"])("%s is a placeholder without figures", async (title) => {
   renderApp(`/${title.toLowerCase()}`);
   expect(await screen.findByRole("heading", { name: title, level: 1 })).toBeInTheDocument();
   const status = screen.getByRole("status");
@@ -94,4 +94,10 @@ test.each([
   const status = await screen.findByRole("status");
   expect(status).toHaveTextContent(`Import a statement batch to see ${what}`);
   expect(within(status).getByRole("link", { name: "Go to Imports" })).toHaveAttribute("href", "/imports");
+});
+
+test.each(["Assets", "Settings"])("%s is a working screen, not a placeholder", async (title) => {
+  renderApp(`/${title.toLowerCase()}`);
+  expect(await screen.findByRole("heading", { name: title, level: 1 })).toBeInTheDocument();
+  expect(screen.queryByText("Not available yet")).toBeNull();
 });

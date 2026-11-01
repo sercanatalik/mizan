@@ -1,6 +1,7 @@
 // Typed wrappers over the Tauri commands. Types come from the Rust side (./generated).
 import { invoke } from "@tauri-apps/api/core";
 import type { AccountView } from "./generated/AccountView";
+import type { AssetView } from "./generated/AssetView";
 import type { BatchView } from "./generated/BatchView";
 import type { CommitView } from "./generated/CommitView";
 import type { Contributions } from "./generated/Contributions";
@@ -8,6 +9,10 @@ import type { Decision } from "./generated/Decision";
 import type { Holdings } from "./generated/Holdings";
 import type { ImportView } from "./generated/ImportView";
 import type { Overview } from "./generated/Overview";
+import type { RefreshReport } from "./generated/RefreshReport";
+import type { SettingsView } from "./generated/SettingsView";
+
+export type PriceSourceKind = "tefas" | "manual" | "none";
 
 /** Errors from the Rust side arrive as `{ kind, message }`. */
 export interface AppError {
@@ -38,4 +43,19 @@ export const api = {
   overview: () => invoke<Overview>("cmd_overview"),
   contributions: () => invoke<Contributions>("cmd_contributions"),
   accounts: () => invoke<AccountView[]>("cmd_accounts"),
+  // Market data
+  refreshPrices: () => invoke<RefreshReport>("cmd_refresh_prices"),
+  settings: () => invoke<SettingsView>("cmd_settings"),
+  setProviderEnabled: (id: string, enabled: boolean) => invoke<void>("cmd_set_provider_enabled", { id, enabled }),
+  setBaseCurrency: (currency: string) => invoke<void>("cmd_set_base_currency", { currency }),
+  setRefreshOnStart: (enabled: boolean) => invoke<void>("cmd_set_refresh_on_start", { enabled }),
+  assets: () => invoke<AssetView[]>("cmd_assets"),
+  setPriceSource: (assetId: number, kind: PriceSourceKind, fundCode: string | null) =>
+    invoke<void>("cmd_set_price_source", { asset_id: assetId, kind, fund_code: fundCode }),
+  acceptSuggestion: (assetId: number) => invoke<void>("cmd_accept_suggestion", { asset_id: assetId }),
+  addManualPrice: (assetId: number, date: string, value: string, currency: string) =>
+    invoke<void>("cmd_add_manual_price", { asset_id: assetId, date, value, currency }),
+  deleteManualPrice: (assetId: number, date: string) => invoke<void>("cmd_delete_manual_price", { asset_id: assetId, date }),
+  mergeAssets: (from: number, into: number) => invoke<number>("cmd_merge_assets", { from, into }),
+  undoMerge: (mergeId: number) => invoke<void>("cmd_undo_merge", { merge_id: mergeId }),
 };

@@ -8,9 +8,9 @@ through community-maintained adapters, not a paid sync service. Every import is
 reviewed before anything is saved, checked against the balances printed on the
 statement, and can be undone.
 
-> **Status: early development.** The import pipeline and the desktop app shell
-> work today. Market data, returns and adapters for raw statement files come
-> next.
+> **Status: early development.** Imports, the desktop app and market data
+> (TEFAS fund prices, TCMB exchange rates) work today. Returns and adapters for
+> raw statement files come next.
 
 ## What works today
 
@@ -19,13 +19,16 @@ statement, and can be undone.
 | **Import pipeline** | `mizan.import/1` schema and validation, duplicate detection across overlapping statements, figure consistency checks, balance checks against statement closing balances, review report, all-or-nothing commit, undo |
 | **Desktop app** | Tauri app with sidebar navigation and native menu; local SQLite database |
 | **Imports screen** | Open a batch, review it, map accounts and create assets, decide on possible duplicates, commit, browse history, undo an import |
-| **Holdings** | Positions and cash per account, provisional average cost, flags for unknown cost basis and failed balance checks |
-| **Overview** | Accounts with their latest balance check and a "needs attention" list |
+| **Holdings** | Positions and cash per account with price, value, weight and unrealized gain; provisional average cost; flags for unknown cost basis and failed balance checks |
+| **Overview** | Portfolio and account totals in your base currency, latest balance checks, a "needs attention" list |
 | **Performance** | Net contributions per account and period |
+| **Market data** | Built-in TEFAS (Turkish fund prices) and TCMB (exchange rates) providers, each switchable in Settings; manual prices; refresh on demand or on start |
+| **Assets** | Price source per asset, TEFAS suggestions, manual prices, merging duplicate assets |
 | **CLI** | `mizan-cli import validate` and `mizan-cli import preview` |
 
-Not yet: market prices and values, time- and money-weighted returns, and
-adapters for raw statements (CSV, PDF, OFX, IBKR Flex). Until adapters exist,
+Not yet: time- and money-weighted returns, the value-over-time chart, prices
+for listed stocks and ETFs (use manual prices for now), and adapters for raw
+statements (CSV, PDF, OFX, IBKR Flex). Until adapters exist,
 imports take `mizan.import/1` batch files. Every screen shows real data only;
 where something can't be computed yet, it says what is missing instead of
 showing a number.
@@ -106,6 +109,7 @@ cd apps/desktop && npm test
 crates/mizan-import    mizan.import/1 schema, validation, JSON Schema
 crates/mizan-storage   SQLite store and migrations
 crates/mizan-core      import pipeline, balance replay, read models, fixture harness
+crates/mizan-market    market data providers (TEFAS, TCMB) and refresh
 crates/mizan-cli       command-line tools
 apps/desktop           React + TypeScript frontend
 apps/desktop/src-tauri Tauri host: commands, menu, database location
@@ -114,11 +118,11 @@ docs/                  schema and desktop documentation
 
 ## Roadmap
 
-1. Symbol resolution and market data: prices, market value, unrealized gains
-2. Adapter runtime: mapping files, sandboxed TypeScript scripts, built-in
+1. Adapter runtime: mapping files, sandboxed TypeScript scripts, built-in
    formats (OFX, QIF, IBKR Flex), and an AI-assisted column mapper that writes
    mapping files
-3. Returns engine: time- and money-weighted returns, benchmarks
+2. Returns engine: time- and money-weighted returns, benchmarks, price history
+3. More price providers (listed stocks and ETFs)
 4. Tax lots and realized gains
 
 ## Contributing

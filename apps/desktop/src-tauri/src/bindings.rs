@@ -33,6 +33,10 @@ fn committed_desktop_bindings_match_generated() {
     crate::session::CommitView::export_all(&cfg).unwrap();
     crate::commands::BatchView::export_all(&cfg).unwrap();
     crate::commands::AccountView::export_all(&cfg).unwrap();
+    crate::market::SettingsView::export_all(&cfg).unwrap();
+    crate::market::ProviderView::export_all(&cfg).unwrap();
+    mizan_core::assets::AssetView::export_all(&cfg).unwrap();
+    mizan_market::RefreshReport::export_all(&cfg).unwrap();
     let generated = read_ts(&tmp);
     std::fs::remove_dir_all(&tmp).unwrap();
 
