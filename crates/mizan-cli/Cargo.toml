@@ -1,0 +1,18 @@
+[package]
+name = "mizan-cli"
+description = "Command-line tools for Mizan imports"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "mizan-cli"
+path = "src/main.rs"
+
+[dependencies]
+mizan-import.workspace = true
+mizan-core.workspace = true
+mizan-storage.workspace = true
+clap.workspace = true
+serde_json.workspace = true

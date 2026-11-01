@@ -1,0 +1,5 @@
+target/
+*.db
+.DS_Store
+openspec/
+.claude/

@@ -1,0 +1,675 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "mizan.import/1 batch",
+  "description": "Output of one Mizan import adapter run: records, balance assertions and diagnostics.",
+  "type": "object",
+  "required": [
+    "schema"
+  ],
+  "properties": {
+    "assertions": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Assertion"
+      }
+    },
+    "diagnostics": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Diagnostic"
+      }
+    },
+    "records": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ImportRecord"
+      }
+    },
+    "schema": {
+      "description": "Must be `mizan.import/1`.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "AccountHint": {
+      "description": "Reference to an account as the statement names it. Never an internal id.",
+      "type": "object",
+      "required": [
+        "hint"
+      ],
+      "properties": {
+        "hint": {
+          "description": "Identifier as printed on the statement, e.g. `U1234567`.",
+          "type": "string"
+        },
+        "name_hint": {
+          "description": "Optional human-readable account name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Assertion": {
+      "description": "Closing balances printed on a statement.",
+      "type": "object",
+      "required": [
+        "account",
+        "as_of",
+        "source"
+      ],
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/AccountHint"
+        },
+        "as_of": {
+          "description": "Balances are as of the end of this date.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Date"
+            }
+          ]
+        },
+        "cash": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Money"
+          }
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PositionBalance"
+          }
+        },
+        "source": {
+          "$ref": "#/definitions/Provenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Charge": {
+      "description": "A fee or tax incurred as part of its parent record.",
+      "type": "object",
+      "required": [
+        "amount",
+        "type"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Money"
+        },
+        "type": {
+          "$ref": "#/definitions/ChargeType"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChargeType": {
+      "type": "string",
+      "enum": [
+        "commission",
+        "exchange_fee",
+        "stamp_duty",
+        "transaction_tax",
+        "withholding_tax",
+        "other"
+      ]
+    },
+    "ClassHint": {
+      "type": "string",
+      "enum": [
+        "equity",
+        "etf",
+        "fund",
+        "bond",
+        "option",
+        "crypto",
+        "commodity",
+        "cash",
+        "other"
+      ]
+    },
+    "Code": {
+      "description": "ISO 4217 currency code (e.g. EUR), or an upper-case asset code for non-fiat money.",
+      "type": "string",
+      "pattern": "^[A-Z0-9]{2,12}$"
+    },
+    "Date": {
+      "description": "Calendar date YYYY-MM-DD in the account's local calendar. No time component.",
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "Decimal": {
+      "description": "Decimal number written as a string. Binary floating-point JSON numbers are rejected.",
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+    },
+    "Diagnostic": {
+      "description": "Input an adapter could not turn into a record. Shown in review, never persisted as an activity.",
+      "type": "object",
+      "required": [
+        "locator",
+        "message",
+        "severity"
+      ],
+      "properties": {
+        "locator": {
+          "description": "Position in the source, e.g. `row 87`.",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "raw": true,
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Fx": {
+      "description": "A currency conversion shown on the statement.",
+      "type": "object",
+      "required": [
+        "from",
+        "rate",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/Code"
+        },
+        "rate": {
+          "description": "Units of `to` per one unit of `from`.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
+        },
+        "to": {
+          "$ref": "#/definitions/Code"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ImportRecord": {
+      "description": "One economic event as a statement reports it.",
+      "type": "object",
+      "required": [
+        "account",
+        "date",
+        "kind",
+        "source"
+      ],
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/AccountHint"
+        },
+        "acquisition_date": {
+          "description": "Only on `position_in`.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "charges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Charge"
+          }
+        },
+        "cost_basis": {
+          "description": "Only on `position_in`.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "date": {
+          "$ref": "#/definitions/Date"
+        },
+        "external_id": {
+          "description": "Broker transaction identifier, if the statement has one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fx": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Fx"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gross": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrument": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InstrumentHint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/Kind"
+        },
+        "legs": {
+          "description": "Only on `exchange` and `spinoff`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Leg"
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Link"
+          }
+        },
+        "memo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "net_cash": {
+          "description": "Amount that actually moved in or out of cash.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "price": {
+          "description": "Unit price in the instrument's price currency.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "raw": {
+          "description": "Original source fields, kept for debugging."
+        },
+        "settle_date": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "$ref": "#/definitions/Provenance"
+        },
+        "split": {
+          "description": "Only on `split`.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SplitRatio"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "InstrumentHint": {
+      "description": "Reference to an instrument by whatever identifiers the statement shows.",
+      "type": "object",
+      "properties": {
+        "class_hint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ClassHint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "description": "Currency the instrument is quoted in.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Code"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cusip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "figi": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mic": {
+          "description": "ISO 10383 market identifier code, e.g. `XNAS`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "multiplier": {
+          "description": "Contract multiplier, e.g. `100` for most equity options.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "option": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/OptionTerms"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Kind": {
+      "description": "Closed set of record kinds.",
+      "type": "string",
+      "enum": [
+        "deposit",
+        "withdrawal",
+        "fx_conversion",
+        "internal_transfer",
+        "buy",
+        "sell",
+        "short_sell",
+        "buy_to_cover",
+        "dividend",
+        "interest",
+        "distribution",
+        "reward",
+        "fee",
+        "tax",
+        "position_in",
+        "position_out",
+        "split",
+        "exchange",
+        "spinoff",
+        "return_of_capital",
+        "option_exercise",
+        "option_assignment",
+        "option_expiry",
+        "adjustment"
+      ]
+    },
+    "Leg": {
+      "description": "One instrument's change in a multi-asset corporate action.",
+      "type": "object",
+      "required": [
+        "instrument",
+        "quantity_delta"
+      ],
+      "properties": {
+        "cost_basis_share": {
+          "description": "Fraction (0-1) of the original cost basis allocated to this leg.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrument": {
+          "$ref": "#/definitions/InstrumentHint"
+        },
+        "quantity_delta": {
+          "description": "Signed change in quantity of this instrument.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Link": {
+      "description": "A link to another record, by its external identifier.",
+      "type": "object",
+      "required": [
+        "role",
+        "target"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/definitions/LinkRole"
+        },
+        "target": {
+          "description": "External identifier of the target record.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LinkRole": {
+      "type": "string",
+      "enum": [
+        "reverses",
+        "transfer_pair",
+        "related"
+      ]
+    },
+    "Money": {
+      "description": "A monetary amount: a decimal paired with a currency or asset code.",
+      "type": "object",
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "currency": {
+          "$ref": "#/definitions/Code"
+        }
+      },
+      "additionalProperties": false
+    },
+    "OptionRight": {
+      "type": "string",
+      "enum": [
+        "call",
+        "put"
+      ]
+    },
+    "OptionTerms": {
+      "description": "Contract terms for an option instrument.",
+      "type": "object",
+      "required": [
+        "expiry",
+        "right",
+        "strike",
+        "underlying"
+      ],
+      "properties": {
+        "expiry": {
+          "$ref": "#/definitions/Date"
+        },
+        "right": {
+          "$ref": "#/definitions/OptionRight"
+        },
+        "strike": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "underlying": {
+          "description": "Underlying symbol as printed on the statement.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PositionBalance": {
+      "description": "Expected quantity of one instrument.",
+      "type": "object",
+      "required": [
+        "instrument",
+        "quantity"
+      ],
+      "properties": {
+        "instrument": {
+          "$ref": "#/definitions/InstrumentHint"
+        },
+        "quantity": {
+          "$ref": "#/definitions/Decimal"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Provenance": {
+      "description": "Where a record, assertion or diagnostic came from.",
+      "type": "object",
+      "required": [
+        "adapter",
+        "adapter_version",
+        "file_sha256",
+        "locator"
+      ],
+      "properties": {
+        "adapter": {
+          "description": "Adapter identifier, e.g. `degiro-csv`.",
+          "type": "string"
+        },
+        "adapter_version": {
+          "description": "Adapter version, e.g. `0.4.0`.",
+          "type": "string"
+        },
+        "file_sha256": {
+          "description": "SHA-256 of the source file.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Sha256Hex"
+            }
+          ]
+        },
+        "locator": {
+          "description": "Position in the source, e.g. `row 184` or `page 3, line 12`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ]
+    },
+    "Sha256Hex": {
+      "description": "Lower-case hex SHA-256 digest of the source file.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "SplitRatio": {
+      "description": "New units per old units.",
+      "type": "object",
+      "required": [
+        "new",
+        "old"
+      ],
+      "properties": {
+        "new": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "old": {
+          "$ref": "#/definitions/Decimal"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

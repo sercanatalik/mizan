@@ -1,0 +1,15 @@
+[package]
+name = "mizan-import"
+description = "Canonical import schema (mizan.import/1) and validation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+rust_decimal.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+schemars.workspace = true
