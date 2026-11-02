@@ -268,3 +268,36 @@ adapters/<adapter-id>/fixtures/<case>/
 The harness in `mizan_core::fixture` passes the input bytes and their SHA-256
 to the adapter, checks that the output is a clean batch, and compares it with
 `expected.json`. A mismatch fails with a line diff.
+
+## Manual entries
+
+Activities entered by hand on the Activity screen are ordinary
+`mizan.import/1` records. They go through the same validation, consistency
+checks, fingerprinting and duplicate detection as imported records, and every
+screen treats them the same way.
+
+- **Provenance:** adapter `manual`, the app version, a SHA-256 unique to the
+  entry, and locator `manual entry`. The time the entry was added is kept in
+  `raw.created_at`.
+- **Storage:** each entry is its own batch, so it can be replaced or deleted on
+  its own, in one transaction. Manual batches do not appear in the import
+  history.
+- **Kinds:** buy, sell, deposit, withdrawal, dividend, interest, fee, tax,
+  `position_in`, `position_out` and split. Other kinds come from imports only.
+- **Editing:** manual entries can be edited and deleted. An edit records
+  `raw.edited_at`.
+- **Edited tag:** the Activity list and detail tag every activity changed after
+  it was imported or first entered as "Edited", with the date of the last
+  change. Reverting an amended import removes the tag.
+- **Amending imported activities:** any imported activity can be edited on the
+  Activity screen. The change is made in place and the record as first imported
+  is kept in `activity_amendments`, so the activity shows as "amended" and
+  **Revert to imported values** restores it. Its provenance and fingerprint do
+  not change: re-importing the same statement recognises it as already stored
+  and keeps the amendment. Undoing the import removes the activity and its kept
+  values together. Kinds the form does not cover (exchanges, spinoffs, options
+  and so on) allow editing date, quantity, price, gross, net cash and memo, and
+  keep their legs and other fields. An imported activity is not deleted on its
+  own; undo its import instead.
+- **Accounts created from the form** get an internal statement identifier
+  `manual:<id>` that never matches a real statement.

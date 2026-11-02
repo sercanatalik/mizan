@@ -84,7 +84,50 @@ pub struct MergeRow {
     pub created_at: String,
 }
 
+/// Setting listing the assets marked as benchmarks on the Assets screen
+/// (comma-separated asset ids). Their price history is kept in full.
+pub const BENCHMARK_CANDIDATES_KEY: &str = "benchmark.candidates";
+
 impl Store {
+    // ---- benchmark candidates ----
+
+    /// Assets marked as benchmarks, as canonical ids of assets that still exist.
+    pub fn benchmark_candidates(&self) -> Result<std::collections::BTreeSet<AssetId>> {
+        let ids: std::collections::BTreeSet<AssetId> =
+            self.list_assets()?.iter().map(|a| a.id).collect();
+        let mut out = std::collections::BTreeSet::new();
+        for part in self
+            .setting(BENCHMARK_CANDIDATES_KEY)?
+            .unwrap_or_default()
+            .split(',')
+        {
+            if let Ok(id) = part.trim().parse::<AssetId>() {
+                let c = self.canonical_asset(id)?;
+                if ids.contains(&c) {
+                    out.insert(c);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Mark or unmark an asset as a benchmark.
+    pub fn set_benchmark_candidate(&mut self, asset: AssetId, on: bool) -> Result<()> {
+        let asset = self.canonical_asset(asset)?;
+        let mut set = self.benchmark_candidates()?;
+        if on {
+            set.insert(asset);
+        } else {
+            set.remove(&asset);
+        }
+        let v = set
+            .iter()
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        self.set_setting(BENCHMARK_CANDIDATES_KEY, &v)
+    }
+
     // ---- settings ----
 
     pub fn setting(&self, key: &str) -> Result<Option<String>> {

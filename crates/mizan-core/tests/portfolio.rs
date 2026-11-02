@@ -1,5 +1,6 @@
 use mizan_core::portfolio::{
-    contributions, holdings, overview, AttentionItem, CostState, Period, Position,
+    contributions, contributions_scoped, holdings, holdings_scoped, overview, overview_scoped,
+    AccountScope, AttentionItem, CostState, Period, Position,
 };
 use mizan_core::*;
 use mizan_import::{parse_batch, parse_batch_value, Date};
@@ -121,6 +122,9 @@ fn average_cost_after_partial_sale() {
     assert_eq!(p.cost.total.as_deref(), Some("6081.60"));
     assert_eq!(p.cost.average.as_deref(), Some("152.04"));
     assert_eq!(p.cost.currency.as_deref(), Some("USD"));
+    // First in, first out: the sale takes 10 of the first 40, both lots stay open.
+    assert_eq!(p.open_lots, Some(2));
+    assert_eq!(p.series_key, None, "no price source and no prices");
 }
 
 #[test]
@@ -441,6 +445,18 @@ fn failed_balance_check_flags_position_and_overview() {
     assert!(!check.passed);
     let displays: Vec<&str> = check.failed.iter().map(|f| f.display.as_str()).collect();
     assert_eq!(displays, vec!["cash", "ASML Holding"]);
+    let asml_line = &check.failed[1];
+    assert_eq!(
+        (
+            asml_line.expected.as_str(),
+            asml_line.computed.as_str(),
+            asml_line.difference.as_str()
+        ),
+        ("3", "1", "2")
+    );
+    for f in &check.failed {
+        assert!(!f.difference.is_empty(), "{} has a difference", f.display);
+    }
     assert!(o
         .attention
         .iter()
@@ -619,6 +635,19 @@ fn holdings_values_priced_unpriced_and_no_rate() {
     let h = holdings(&s, today()).unwrap();
     assert!(h.has_prices);
     let aft = position(&h, "isin:AFT");
+    let aft_id = s
+        .list_assets()
+        .unwrap()
+        .into_iter()
+        .find(|a| a.instrument_key == "isin:AFT")
+        .unwrap()
+        .id;
+    assert_eq!(
+        aft.series_key,
+        Some(format!("asset:{aft_id}")),
+        "prices kept only in this database"
+    );
+    assert_eq!(aft.open_lots, Some(1));
     let p = aft.price.as_ref().unwrap();
     assert_eq!(
         (p.value.as_str(), p.date.as_str(), p.stale),
@@ -666,6 +695,30 @@ fn holdings_values_priced_unpriced_and_no_rate() {
     let o = overview(&s, today()).unwrap();
     assert!(o.has_prices);
     assert_eq!(o.total, h.total);
+    // Allocation: NOPRICE is left out and counted; negative TRY cash stays visible.
+    let rows: Vec<(&str, &str)> = o
+        .allocation
+        .rows
+        .iter()
+        .map(|r| (r.class.as_str(), r.value.as_str()))
+        .collect();
+    assert_eq!(o.allocation.excluded, 1);
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    let other = o
+        .allocation
+        .rows
+        .iter()
+        .find(|r| r.class == "other")
+        .unwrap();
+    let cash = o
+        .allocation
+        .rows
+        .iter()
+        .find(|r| r.class == "cash")
+        .unwrap();
+    assert!(cash.value.starts_with('-'), "{}", cash.value);
+    let share = |r: &mizan_core::portfolio::AllocationRow| r.share.parse::<f64>().unwrap();
+    assert!((share(other) + share(cash) - 100.0).abs() < 0.2);
     assert_eq!(o.accounts[0].total.as_ref().unwrap().currency, "EUR");
 }
 
@@ -728,4 +781,88 @@ fn contributions_for_the_last_month() {
         .find(|p| p.period == Period::ThreeMonths)
         .unwrap();
     assert_eq!(q.total[0].amount, "+1200.00");
+}
+
+#[test]
+fn one_account_scope_limits_holdings_overview_and_contributions() {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        vec![
+            rec("deposit", "2026-01-05", None, None, Some(usd("1000.00"))),
+            rec(
+                "buy",
+                "2026-01-06",
+                Some("US0378331005"),
+                Some("2"),
+                Some(usd("-400.00")),
+            ),
+        ],
+        vec![],
+    );
+    import(
+        &mut s,
+        'b',
+        vec![{
+            let mut r = rec("deposit", "2026-01-07", None, None, Some(eur("300.00")));
+            r["account"] = json!({"hint": "U2", "name_hint": "Bank"});
+            r
+        }],
+        vec![],
+    );
+    let today = Date::parse("2026-03-01").unwrap();
+    let bank = s
+        .list_accounts()
+        .unwrap()
+        .into_iter()
+        .find(|a| a.name == "Bank")
+        .unwrap()
+        .id;
+    let scope = AccountScope::One(bank);
+
+    let all = holdings(&s, today).unwrap();
+    assert_eq!(all.accounts.len(), 2);
+    let h = holdings_scoped(&s, &s, today, scope).unwrap();
+    assert_eq!(h.accounts.len(), 1);
+    assert_eq!(h.accounts[0].name, "Bank");
+    assert!(h.accounts[0]
+        .positions
+        .iter()
+        .all(|p| p.instrument_key != "isin:US0378331005"));
+
+    let o = overview_scoped(&s, &s, today, scope).unwrap();
+    assert_eq!(
+        o.accounts
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Bank"]
+    );
+    assert_eq!(overview(&s, today).unwrap().accounts.len(), 2);
+
+    let c = contributions_scoped(&s, today, scope).unwrap();
+    let ytd = c.periods.iter().find(|p| p.period == Period::Ytd).unwrap();
+    assert_eq!(ytd.accounts.len(), 1);
+    assert_eq!(
+        ytd.total
+            .iter()
+            .map(|l| (l.currency.as_str(), l.amount.as_str()))
+            .collect::<Vec<_>>(),
+        [("EUR", "+300.00")]
+    );
+    let full = contributions(&s, today).unwrap();
+    assert_eq!(
+        full.periods
+            .iter()
+            .find(|p| p.period == Period::Ytd)
+            .unwrap()
+            .total
+            .len(),
+        2
+    );
+
+    assert_eq!(AccountScope::from_option(None), AccountScope::All);
+    assert!(AccountScope::All.includes(bank));
+    assert!(!scope.includes(bank + 1000));
 }

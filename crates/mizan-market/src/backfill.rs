@@ -78,12 +78,23 @@ impl PlanInput {
     pub fn from_store(store: &Store) -> Result<Self, StorageError> {
         let base = crate::base_currency_code(store)?;
         let mut first_by_asset: BTreeMap<i64, Date> = BTreeMap::new();
+        // First activity of each account, and the accounts each asset appears in.
+        let mut first_by_account: BTreeMap<i64, Date> = BTreeMap::new();
+        let mut accounts_by_asset: BTreeMap<i64, BTreeSet<i64>> = BTreeMap::new();
         let mut first_any: Option<Date> = None;
         let mut first_foreign: Option<Date> = None;
         for a in store.list_accounts()? {
             for s in store.all_activities(a.id)? {
                 let d = s.record.date;
                 first_any = Some(first_any.map_or(d, |f| f.min(d)));
+                let e = first_by_account.entry(a.id).or_insert(d);
+                *e = (*e).min(d);
+                if let Some(asset) = s.asset_id {
+                    accounts_by_asset
+                        .entry(store.canonical_asset(asset)?)
+                        .or_default()
+                        .insert(a.id);
+                }
                 if record_currencies(&s.record).any(|c| c != "TRY") {
                     first_foreign = Some(first_foreign.map_or(d, |f| f.min(d)));
                 }
@@ -94,17 +105,31 @@ impl PlanInput {
                 }
             }
         }
-        // The benchmark is compared from the portfolio's first activity, held or not.
-        let benchmark = store
-            .setting(BENCHMARK_KEY)?
-            .and_then(|v| v.trim().parse::<i64>().ok())
-            .map(|id| store.canonical_asset(id))
-            .transpose()?;
         let mut tefas: BTreeMap<String, Date> = BTreeMap::new();
         let mut listed: BTreeMap<(String, String), Date> = BTreeMap::new();
+        // The benchmark and every asset marked as a benchmark on the Assets
+        // screen: when held, from the first activity of the (earliest) account
+        // holding it; when not held, from the portfolio's first activity.
+        let mut benchmarks = store.benchmark_candidates()?;
+        if let Some(b) = store
+            .setting(BENCHMARK_KEY)?
+            .and_then(|v| v.trim().parse::<i64>().ok())
+        {
+            benchmarks.insert(store.canonical_asset(b)?);
+        }
         for (asset, source) in store.price_sources()? {
             let held = first_by_asset.get(&asset).copied();
-            let as_benchmark = (benchmark == Some(asset)).then_some(first_any).flatten();
+            let holding_accounts = accounts_by_asset.get(&asset).and_then(|accts| {
+                accts
+                    .iter()
+                    .filter_map(|a| first_by_account.get(a))
+                    .min()
+                    .copied()
+            });
+            let as_benchmark = benchmarks
+                .contains(&asset)
+                .then(|| holding_accounts.or(first_any))
+                .flatten();
             let Some(d) = [held, as_benchmark].into_iter().flatten().min() else {
                 continue;
             };

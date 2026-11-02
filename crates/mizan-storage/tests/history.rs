@@ -265,3 +265,87 @@ fn inflation_values_and_checks_round_trip() {
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[1].value, "1676.00");
 }
+
+#[test]
+fn series_summaries_and_points_are_read_only() {
+    let mut c = HistoryCache::open_in_memory().unwrap();
+    // 2025-03-14 is a Friday, 2025-03-15 a Saturday.
+    for (d, p) in [
+        ("2025-03-13", "1.10"),
+        ("2025-03-14", "1.20"),
+        ("2025-03-15", "1.25"),
+    ] {
+        c.upsert_fund_price(&price("AFT", d, p), "f1").unwrap();
+    }
+    c.upsert_listed_price(&listed("VWCE.DE", "2025-03-14", "47.12"), "f2")
+        .unwrap();
+    c.upsert_rate(
+        &CachedRate {
+            currency: "USD".into(),
+            date: "2025-04-01".into(),
+            try_per_unit: "38.10".into(),
+            source: "tcmb".into(),
+        },
+        "f3",
+    )
+    .unwrap();
+    c.commit_inflation(
+        "eurostat",
+        "TR:I15",
+        &[idx("2026-08", "1640.10"), idx("2026-09", "1675.96")],
+        true,
+        "f4",
+    )
+    .unwrap();
+    let before = c.all_text_values().unwrap();
+
+    let f = &c.fund_series().unwrap()[0];
+    assert_eq!(
+        (f.source.as_str(), f.id.as_str(), f.currency.as_deref()),
+        ("tefas", "AFT", Some("TRY"))
+    );
+    assert_eq!(
+        (
+            f.count,
+            f.first.as_str(),
+            f.last.as_str(),
+            f.latest.as_str()
+        ),
+        (3, "2025-03-13", "2025-03-15", "1.25")
+    );
+    assert_eq!(f.weekday_values, 2);
+    let l = &c.listed_series().unwrap()[0];
+    assert_eq!(
+        (l.source.as_str(), l.id.as_str(), l.currency.as_deref()),
+        ("yahoo", "VWCE.DE", Some("EUR"))
+    );
+    assert_eq!(c.rate_series().unwrap()[0].latest, "38.10");
+    let i = &c.index_series().unwrap()[0];
+    assert_eq!(
+        (i.source.as_str(), i.id.as_str(), i.count, i.latest.as_str()),
+        ("eurostat", "TR:I15", 2, "1675.96")
+    );
+
+    let pts = c.fund_points("AFT").unwrap();
+    assert_eq!(pts.len(), 3);
+    assert_eq!(
+        (pts[0].period.as_str(), pts[0].fetched_at.as_str()),
+        ("2025-03-13", "f1")
+    );
+    assert_eq!(
+        c.listed_points("yahoo", "VWCE.DE").unwrap()[0]
+            .currency
+            .as_deref(),
+        Some("EUR")
+    );
+    assert_eq!(c.rate_points("USD").unwrap()[0].value, "38.10");
+    assert_eq!(
+        c.index_points("eurostat", "TR:I15").unwrap()[1].period,
+        "2026-09"
+    );
+    assert_eq!(
+        c.all_text_values().unwrap(),
+        before,
+        "browsing writes nothing"
+    );
+}

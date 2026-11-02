@@ -373,3 +373,108 @@ fn nothing_to_backfill_without_activities() {
     let inp = PlanInput::from_store(&store).unwrap();
     assert!(inp.tefas.is_empty() && inp.fx_from.is_none());
 }
+
+#[test]
+fn assets_marked_as_benchmarks_are_backfilled_from_the_first_activity_even_when_not_held() {
+    let (mut store, _) = pension_store();
+    let spy = store
+        .create_asset(
+            "sym:SPY@ARCX",
+            &mizan_import::InstrumentHint {
+                symbol: Some("SPY".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    store
+        .set_price_source(
+            spy,
+            Some(&PriceSourceKind::Yahoo {
+                symbol: "SPY".into(),
+            }),
+        )
+        .unwrap();
+    let key = ("yahoo".to_string(), "SPY".to_string());
+    assert!(!PlanInput::from_store(&store)
+        .unwrap()
+        .listed
+        .contains_key(&key));
+    store.set_benchmark_candidate(spy, true).unwrap();
+    let inp = PlanInput::from_store(&store).unwrap();
+    assert_eq!(inp.listed[&key], Date::parse("2025-03-05").unwrap());
+    store.set_benchmark_candidate(spy, false).unwrap();
+    assert!(!PlanInput::from_store(&store)
+        .unwrap()
+        .listed
+        .contains_key(&key));
+}
+
+/// Commit records for account `hint` into `store`.
+fn commit_records(store: &mut Store, file: char, hint: &str, records: Vec<serde_json::Value>) {
+    let records: Vec<serde_json::Value> = records
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut r)| {
+            r["source"] = serde_json::json!({"adapter": "t", "adapter_version": "1", "file_sha256": file.to_string().repeat(64), "locator": format!("row {}", i + 1)});
+            r["account"] = serde_json::json!({"hint": hint, "name_hint": hint});
+            r
+        })
+        .collect();
+    let parsed =
+        parse_batch_value(serde_json::json!({"schema": "mizan.import/1", "records": records}))
+            .unwrap();
+    assert!(parsed.is_clean(), "{:?}", parsed.errors);
+    let rb = {
+        let mut r = MappingResolver {
+            store,
+            policy: CREATE,
+        };
+        resolve_batch(parsed, &mut r).unwrap()
+    };
+    let p = prepare(store, rb).unwrap();
+    commit(store, &p, &Decisions::new()).unwrap();
+}
+
+#[test]
+fn a_held_benchmark_starts_at_the_first_activity_of_the_account_holding_it() {
+    let mut store = Store::open_in_memory().unwrap();
+    let try_ = |a: &str| serde_json::json!({"amount": a, "currency": "TRY"});
+    let fund = serde_json::json!({"symbol": "XYZ", "class_hint": "fund", "currency": "TRY"});
+    commit_records(
+        &mut store,
+        'a',
+        "OLD",
+        vec![
+            serde_json::json!({"kind": "deposit", "date": "2020-01-02", "net_cash": try_("100.00")}),
+        ],
+    );
+    commit_records(
+        &mut store,
+        'b',
+        "NEW",
+        vec![
+            serde_json::json!({"kind": "deposit", "date": "2022-01-03", "net_cash": try_("1000.00")}),
+            serde_json::json!({"kind": "buy", "date": "2023-05-02", "instrument": fund, "quantity": "10", "net_cash": try_("-100.00")}),
+        ],
+    );
+    let xyz = store.list_assets().unwrap()[0].id;
+    store
+        .set_price_source(
+            xyz,
+            Some(&PriceSourceKind::Tefas {
+                fund_code: "XYZ".into(),
+            }),
+        )
+        .unwrap();
+    assert_eq!(
+        PlanInput::from_store(&store).unwrap().tefas["XYZ"],
+        Date::parse("2023-05-02").unwrap(),
+        "unmarked: from its first activity"
+    );
+    store.set_benchmark_candidate(xyz, true).unwrap();
+    assert_eq!(
+        PlanInput::from_store(&store).unwrap().tefas["XYZ"],
+        Date::parse("2022-01-03").unwrap(),
+        "marked and held: from the first activity of the account holding it, not the portfolio's"
+    );
+}

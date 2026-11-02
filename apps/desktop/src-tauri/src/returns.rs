@@ -2,10 +2,11 @@
 
 use std::sync::atomic::Ordering;
 
-use mizan_core::portfolio::Period;
+use mizan_core::portfolio::{AccountScope, Period};
 use mizan_core::returns::view::InflationView;
 use mizan_core::returns::{
-    returns_view, value_history, Benchmark, Inputs, PeriodReturns, ReturnsView, ValueHistory,
+    in_scope, returns_view, value_history, Benchmark, Inputs, PeriodReturns, ReturnsView,
+    ValueHistory,
 };
 use mizan_import::Date;
 use serde::Serialize;
@@ -44,6 +45,7 @@ pub struct PerformanceView {
 pub struct Computed {
     pub generation: u64,
     pub today: Date,
+    pub scope: AccountScope,
     pub returns: ReturnsView,
     pub history: ValueHistory,
     pub options: Vec<BenchmarkOption>,
@@ -59,7 +61,12 @@ fn label(a: &mizan_storage::AssetRow) -> String {
     }
 }
 
-fn compute(state: &AppState, today: Date, generation: u64) -> Result<Computed, AppError> {
+fn compute(
+    state: &AppState,
+    today: Date,
+    generation: u64,
+    scope: AccountScope,
+) -> Result<Computed, AppError> {
     let store = state.store.lock().map_err(store_err)?;
     let inputs = with_history(state, |cache| {
         Ok(Inputs::load(&store, cache.ok().map(|c| &*c))?)
@@ -68,10 +75,14 @@ fn compute(state: &AppState, today: Date, generation: u64) -> Result<Computed, A
     let canon = |k: &str| keys.get(k).cloned().unwrap_or_else(|| k.to_string());
     let assets = store.list_assets()?;
     let priced: std::collections::HashSet<&str> = inputs.book.priced_keys().collect();
+    let candidates = store.benchmark_candidates()?;
     let mut options: Vec<BenchmarkOption> = assets
         .iter()
+        // Assets with stored prices, and every asset marked as a benchmark
+        // (its history may still be downloading).
         .filter(|a| {
-            !keys.contains_key(&a.instrument_key) && priced.contains(a.instrument_key.as_str())
+            !keys.contains_key(&a.instrument_key)
+                && (priced.contains(a.instrument_key.as_str()) || candidates.contains(&a.id))
         })
         .map(|a| BenchmarkOption {
             asset_id: a.id,
@@ -91,10 +102,11 @@ fn compute(state: &AppState, today: Date, generation: u64) -> Result<Computed, A
             name: label(a),
         })
     });
-    let series = inputs.series(today);
+    let series = in_scope(inputs.series(today), scope);
     Ok(Computed {
         generation,
         today,
+        scope,
         returns: returns_view(
             &series,
             &inputs.book,
@@ -109,16 +121,34 @@ fn compute(state: &AppState, today: Date, generation: u64) -> Result<Computed, A
     })
 }
 
-/// The memoized computation for the current data generation, recomputed when stale.
+/// How many scopes keep their computation for the current generation.
+const MEMO_SCOPES: usize = 4;
+
+/// The memoized computation for all accounts.
 pub fn computed(state: &AppState, today: Date) -> Result<Computed, AppError> {
+    computed_for(state, today, AccountScope::All)
+}
+
+/// The memoized computation for `scope` and the current data generation,
+/// recomputed when stale.
+pub fn computed_for(
+    state: &AppState,
+    today: Date,
+    scope: AccountScope,
+) -> Result<Computed, AppError> {
     let generation = state.generation.load(Ordering::SeqCst);
-    if let Some(c) = state.returns_memo.lock().map_err(store_err)?.as_ref() {
-        if c.generation == generation && c.today == today {
+    {
+        let mut memo = state.returns_memo.lock().map_err(store_err)?;
+        memo.retain(|c| c.generation == generation && c.today == today);
+        if let Some(c) = memo.iter().find(|c| c.scope == scope) {
             return Ok(c.clone());
         }
     }
-    let c = compute(state, today, generation)?;
-    *state.returns_memo.lock().map_err(store_err)? = Some(c.clone());
+    let c = compute(state, today, generation, scope)?;
+    let mut memo = state.returns_memo.lock().map_err(store_err)?;
+    memo.retain(|m| m.scope != scope);
+    memo.insert(0, c.clone());
+    memo.truncate(MEMO_SCOPES);
     Ok(c)
 }
 
@@ -127,7 +157,17 @@ pub fn performance(
     period: Period,
     today: Date,
 ) -> Result<PerformanceView, AppError> {
-    let c = computed(state, today)?;
+    performance_scoped(state, period, today, AccountScope::All)
+}
+
+/// Performance of the accounts in `scope`.
+pub fn performance_scoped(
+    state: &AppState,
+    period: Period,
+    today: Date,
+    scope: AccountScope,
+) -> Result<PerformanceView, AppError> {
+    let c = computed_for(state, today, scope)?;
     let returns = c
         .returns
         .periods
@@ -145,7 +185,16 @@ pub fn performance(
 }
 
 pub fn history(state: &AppState, today: Date) -> Result<ValueHistory, AppError> {
-    Ok(computed(state, today)?.history)
+    history_scoped(state, today, AccountScope::All)
+}
+
+/// Value history of the accounts in `scope`.
+pub fn history_scoped(
+    state: &AppState,
+    today: Date,
+    scope: AccountScope,
+) -> Result<ValueHistory, AppError> {
+    Ok(computed_for(state, today, scope)?.history)
 }
 
 /// Choose the benchmark (an asset with stored prices) or none.
@@ -171,13 +220,26 @@ fn today() -> Date {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn cmd_performance(app: AppHandle, period: Period) -> Result<PerformanceView, AppError> {
-    blocking(app, move |s| performance(s, period, today())).await
+pub async fn cmd_performance(
+    app: AppHandle,
+    period: Period,
+    account_id: Option<i64>,
+) -> Result<PerformanceView, AppError> {
+    blocking(app, move |s| {
+        performance_scoped(s, period, today(), AccountScope::from_option(account_id))
+    })
+    .await
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn cmd_value_history(app: AppHandle) -> Result<ValueHistory, AppError> {
-    blocking(app, |s| history(s, today())).await
+pub async fn cmd_value_history(
+    app: AppHandle,
+    account_id: Option<i64>,
+) -> Result<ValueHistory, AppError> {
+    blocking(app, move |s| {
+        history_scoped(s, today(), AccountScope::from_option(account_id))
+    })
+    .await
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -326,5 +388,83 @@ mod tests {
             c.history.points.last().unwrap().value.as_deref(),
             Some("1500.00")
         );
+    }
+
+    #[test]
+    fn scoped_performance_is_memoized_per_scope() {
+        let (st, _) = state();
+        let other = st
+            .store
+            .lock()
+            .unwrap()
+            .create_account("Empty", "E1")
+            .unwrap();
+        let pension = st
+            .store
+            .lock()
+            .unwrap()
+            .list_accounts()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.name == "Pension")
+            .unwrap()
+            .id;
+        let today = day("2026-06-02");
+        let p =
+            performance_scoped(&st, Period::SinceStart, today, AccountScope::One(pension)).unwrap();
+        assert_eq!(p.returns.twr.value.as_deref(), Some("+10.00%"));
+        assert_eq!(p.returns.accounts.len(), 1);
+        let e =
+            performance_scoped(&st, Period::SinceStart, today, AccountScope::One(other)).unwrap();
+        assert!(
+            e.returns.accounts.is_empty(),
+            "an account without activity has no returns"
+        );
+        let all = performance(&st, Period::SinceStart, today).unwrap();
+        assert_eq!(all.returns.twr.value.as_deref(), Some("+10.00%"));
+        let scopes: Vec<AccountScope> = st
+            .returns_memo
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|c| c.scope)
+            .collect();
+        assert_eq!(scopes.len(), 3);
+        assert!(scopes.contains(&AccountScope::All));
+        let h = history_scoped(&st, today, AccountScope::One(other)).unwrap();
+        assert!(h.points.is_empty());
+    }
+
+    #[test]
+    fn instruments_marked_as_benchmarks_are_offered_before_they_have_prices() {
+        let (st, _) = state();
+        let spy =
+            crate::market::add_benchmark_instrument(&st, "yahoo", "spy", Some("SPDR S&P 500"))
+                .unwrap();
+        let again = crate::market::add_benchmark_instrument(&st, "yahoo", "SPY", None).unwrap();
+        assert_eq!(spy, again, "an existing asset is reused");
+        {
+            let store = st.store.lock().unwrap();
+            assert_eq!(
+                store.price_source(spy).unwrap(),
+                Some(mizan_storage::PriceSourceKind::Yahoo {
+                    symbol: "SPY".into()
+                })
+            );
+            assert!(store.benchmark_candidates().unwrap().contains(&spy));
+        }
+        let v = performance(&st, Period::SinceStart, day("2026-06-02")).unwrap();
+        assert!(
+            v.benchmark_options.iter().any(|o| o.asset_id == spy),
+            "offered while history downloads"
+        );
+        crate::market::set_benchmark_candidate(&st, spy, false).unwrap();
+        let v = performance(&st, Period::SinceStart, day("2026-06-02")).unwrap();
+        assert!(
+            !v.benchmark_options.iter().any(|o| o.asset_id == spy),
+            "no prices and no longer marked"
+        );
+        assert!(crate::market::add_benchmark_instrument(&st, "manual", "X", None).is_err());
+        assert!(crate::market::add_benchmark_instrument(&st, "yahoo", "two words", None).is_err());
     }
 }

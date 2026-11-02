@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
-import { usePendingDecisions } from "../bridge/queries";
-import { SECTIONS, type Section } from "./sections";
+import { useInboxCount } from "../bridge/queries";
+import { DataStatus } from "./DataStatus";
+import { ViewBar, type ViewControls } from "./ViewBar";
+import { PaletteProvider, usePalette } from "./palette";
+import { usePaletteGroups } from "./paletteGroups";
+import { LABELED_GROUPS, SECTIONS, type Section } from "./sections";
 import { useMarketEvents } from "./useMarketEvents";
 import { useMenuEvents } from "./useMenuEvents";
 import s from "./layout.module.css";
@@ -20,7 +24,7 @@ function NavItem({ section, badge }: { section: Section; badge?: number }) {
       <Icon d={section.icon} />
       <span className={s.navLabel}>{section.label}</span>
       {badge ? (
-        <span className={s.navBadge} aria-label={`${badge} awaiting decision`}>
+        <span className={s.navBadge} aria-label={`${badge} to review`}>
           {badge}
         </span>
       ) : null}
@@ -29,8 +33,8 @@ function NavItem({ section, badge }: { section: Section; badge?: number }) {
 }
 
 export function Sidebar() {
-  const pending = usePendingDecisions().data ?? 0;
-  const groups = ["Portfolio", "Data"] as const;
+  const open = useInboxCount().data ?? 0;
+  const badge = (x: Section) => (x.id === "inbox" ? open : undefined);
   return (
     <nav aria-label="Main" className={s.sidebar}>
       <NavLink to="/" className={s.brand} aria-label="Mizan home">
@@ -39,15 +43,22 @@ export function Sidebar() {
         </svg>
         mizan
       </NavLink>
-      {groups.map((g) => (
+      <SearchButton />
+      <div className={s.group}>
+        {SECTIONS.filter((x) => x.group === "Home").map((x) => (
+          <NavItem key={x.id} section={x} badge={badge(x)} />
+        ))}
+      </div>
+      {LABELED_GROUPS.map((g) => (
         <div key={g} className={s.group}>
           <div className={s.groupLabel}>{g}</div>
           {SECTIONS.filter((x) => x.group === g).map((x) => (
-            <NavItem key={x.id} section={x} badge={x.id === "imports" ? pending : undefined} />
+            <NavItem key={x.id} section={x} badge={badge(x)} />
           ))}
         </div>
       ))}
       <div className={s.bottom}>
+        <DataStatus />
         {SECTIONS.filter((x) => x.group === null).map((x) => (
           <NavItem key={x.id} section={x} />
         ))}
@@ -56,9 +67,34 @@ export function Sidebar() {
   );
 }
 
+function SearchButton() {
+  const { show } = usePalette();
+  return (
+    <button type="button" className={s.search} onClick={show}>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.5-3.5" />
+      </svg>
+      <span className={s.searchLabel}>Search or run…</span>
+      <kbd className={s.searchKey} aria-hidden="true">
+        ⌘K
+      </kbd>
+    </button>
+  );
+}
+
 export function Layout() {
-  useMenuEvents();
   useMarketEvents();
+  const groups = usePaletteGroups();
+  return (
+    <PaletteProvider groups={() => groups}>
+      <Shell />
+    </PaletteProvider>
+  );
+}
+
+function Shell() {
+  useMenuEvents();
   return (
     <div className={s.shell}>
       <Sidebar />
@@ -71,14 +107,17 @@ export function Layout() {
   );
 }
 
-export function PageHeader(props: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader(props: { title: string; subtitle?: ReactNode; actions?: ReactNode; view?: ViewControls }) {
   return (
-    <header className={s.pageHeader}>
-      <div>
-        <h1 className={s.pageTitle}>{props.title}</h1>
-        {props.subtitle && <div className={s.pageSubtitle}>{props.subtitle}</div>}
+    <header className={s.pageHeaderWrap}>
+      <div className={s.pageHeader}>
+        <div>
+          <h1 className={s.pageTitle}>{props.title}</h1>
+          {props.subtitle && <div className={s.pageSubtitle}>{props.subtitle}</div>}
+        </div>
+        {props.actions}
       </div>
-      {props.actions}
+      {props.view && <ViewBar controls={props.view} />}
     </header>
   );
 }

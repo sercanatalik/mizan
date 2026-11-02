@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::atomic::Ordering;
 
 use chrono::{DateTime, Utc};
-use mizan_core::assets::{assets_view as core_assets_view, suggestion, AssetView};
+use mizan_core::assets::{suggestion, AssetView};
 use mizan_import::{Code, Date};
 use mizan_market::backfill::{self, BackfillProgress, BackfillState, PlanInput};
 use mizan_market::{Http, RefreshReport, SourceStatus, PROVIDERS};
@@ -423,7 +423,12 @@ pub fn set_refresh_on_start(state: &AppState, enabled: bool) -> Result<(), AppEr
 
 pub fn assets_view(state: &AppState, today: Date) -> Result<Vec<AssetView>, AppError> {
     let store = state.store.lock().map_err(locked)?;
-    Ok(core_assets_view(&store, today)?)
+    let book = crate::commands::price_book(state, &store)?;
+    let market = mizan_core::valuation::BookMarket {
+        store: &store,
+        book: &book,
+    };
+    Ok(mizan_core::assets::assets_view_in(&store, &market, today)?)
 }
 
 fn ensure_asset(store: &Store, asset_id: i64) -> Result<mizan_storage::AssetRow, AppError> {
@@ -481,6 +486,68 @@ pub fn set_price_source(
     store.set_price_source(asset_id, source.as_ref())?;
     bump_generation(state);
     Ok(())
+}
+
+/// Mark or unmark an asset as a benchmark: offered on Performance, with its
+/// price history downloaded from the portfolio's first activity, held or not.
+pub fn set_benchmark_candidate(state: &AppState, asset_id: i64, on: bool) -> Result<(), AppError> {
+    let mut store = state.store.lock().map_err(locked)?;
+    ensure_asset(&store, asset_id)?;
+    store.set_benchmark_candidate(asset_id, on)?;
+    drop(store);
+    bump_generation(state);
+    Ok(())
+}
+
+/// Add an instrument to compare against, held or not: a TEFAS fund or a Yahoo
+/// or Twelve Data symbol. An existing asset with the same key is reused. The
+/// asset gets that price source (unless it has one) and is marked as a benchmark.
+pub fn add_benchmark_instrument(
+    state: &AppState,
+    kind: &str,
+    symbol: &str,
+    name: Option<&str>,
+) -> Result<i64, AppError> {
+    let code = match kind {
+        "tefas" => fund_code(symbol)?,
+        "yahoo" => provider_symbol("Yahoo", symbol)?,
+        "twelvedata" => provider_symbol("Twelve Data", symbol)?,
+        other => {
+            return Err(invalid(format!(
+                "a benchmark needs a price provider, not {other:?}"
+            )))
+        }
+    };
+    let hint = mizan_import::InstrumentHint {
+        symbol: Some(code.clone()),
+        name: name
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .map(str::to_owned),
+        ..Default::default()
+    };
+    let key = mizan_core::resolve::instrument_key(&hint)
+        .ok_or_else(|| invalid(format!("{code:?} is not a usable symbol")))?;
+    let id = {
+        let mut store = state.store.lock().map_err(locked)?;
+        let id = match store.asset_for_key(&key)? {
+            Some(id) => store.canonical_asset(id)?,
+            None => store.create_asset(&key, &hint)?,
+        };
+        let has_source = store.price_source(id)?.is_some();
+        drop(store);
+        if !has_source {
+            set_price_source(state, id, kind, Some(&code))?;
+        }
+        state
+            .store
+            .lock()
+            .map_err(locked)?
+            .set_benchmark_candidate(id, true)?;
+        id
+    };
+    bump_generation(state);
+    Ok(id)
 }
 
 pub fn accept_suggestion(state: &AppState, asset_id: i64) -> Result<(), AppError> {
@@ -638,6 +705,37 @@ pub async fn cmd_set_refresh_on_start(app: AppHandle, enabled: bool) -> Result<(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn cmd_assets(app: AppHandle) -> Result<Vec<AssetView>, AppError> {
     blocking(app, |s| assets_view(s, today())).await
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn cmd_set_benchmark_candidate(
+    app: AppHandle,
+    asset_id: i64,
+    on: bool,
+) -> Result<(), AppError> {
+    blocking(app.clone(), move |s| {
+        set_benchmark_candidate(s, asset_id, on)
+    })
+    .await?;
+    if on {
+        spawn_backfill(app);
+    }
+    Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn cmd_add_benchmark_instrument(
+    app: AppHandle,
+    kind: String,
+    symbol: String,
+    name: Option<String>,
+) -> Result<i64, AppError> {
+    let id = blocking(app.clone(), move |s| {
+        add_benchmark_instrument(s, &kind, &symbol, name.as_deref())
+    })
+    .await?;
+    spawn_backfill(app);
+    Ok(id)
 }
 
 #[tauri::command(rename_all = "snake_case")]

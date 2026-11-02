@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useLocation } from "react-router";
 import { PageHeader } from "../app/Layout";
+import type { EditAssetRequest, ManualPriceRequest } from "../app/ViewBar";
 import { errorMessage } from "../bridge/api";
 import type { PriceSourceKind } from "../bridge/api";
 import type { AssetView } from "../bridge/generated/AssetView";
@@ -204,16 +206,112 @@ function SourceCell({ a, providers }: { a: AssetView; providers: ProviderView[] 
   );
 }
 
+const BENCHMARK_KINDS = [
+  { value: "yahoo", label: "Yahoo Finance symbol", placeholder: "SPY, VWCE.DE, XU100.IS" },
+  { value: "twelvedata", label: "Twelve Data symbol", placeholder: "SPY" },
+  { value: "tefas", label: "TEFAS fund code", placeholder: "AFT" },
+] as const;
+
+/** Add an instrument to compare against, whether or not you hold it. */
+function AddBenchmark() {
+  const m = useAssetMutations();
+  const [kind, setKind] = useState<(typeof BENCHMARK_KINDS)[number]["value"]>("yahoo");
+  const [symbol, setSymbol] = useState("");
+  const [name, setName] = useState("");
+  const current = BENCHMARK_KINDS.find((k) => k.value === kind)!;
+  return (
+    <Card
+      title="Benchmarks"
+      label="Benchmarks"
+      aside={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>Marked assets are offered on Performance, with price history from your first activity</span>}
+    >
+      <form
+        style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          m.addBenchmarkInstrument.mutate(
+            { kind, symbol: symbol.trim(), name: name.trim() || null },
+            {
+              onSuccess: () => {
+                setSymbol("");
+                setName("");
+              },
+            },
+          );
+        }}
+      >
+        <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          Source
+          <select style={input} value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+            {BENCHMARK_KINDS.map((k) => (
+              <option key={k.value} value={k.value}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          Symbol
+          <input style={{ ...input, width: 140 }} placeholder={current.placeholder} value={symbol} onChange={(e) => setSymbol(e.target.value)} />
+        </label>
+        <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          Name
+          <input style={{ ...input, width: 200 }} placeholder="Optional" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <Button small type="submit" variant="primary" disabled={!symbol.trim() || m.addBenchmarkInstrument.isPending}>
+          Add benchmark
+        </Button>
+        {m.addBenchmarkInstrument.isSuccess && <span style={{ fontSize: 12, color: "var(--gain)" }}>Added; its price history is downloading</span>}
+        {m.addBenchmarkInstrument.error && (
+          <span role="alert" style={{ fontSize: 12, color: "var(--warn-strong)" }}>
+            {errorMessage(m.addBenchmarkInstrument.error)}
+          </span>
+        )}
+      </form>
+    </Card>
+  );
+}
+
+/** Add manual price, opened from the Add menu: pick an asset, then its price form. */
+function ManualPricePicker({ assets, onClose }: { assets: AssetView[]; onClose: () => void }) {
+  const [assetId, setAssetId] = useState<number | null>(null);
+  const chosen = assets.find((a) => a.asset_id === assetId) ?? null;
+  return (
+    <Card title="Add manual price" label="Add manual price" aside={<Button small variant="ghost" onClick={onClose}>Close</Button>}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+        <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 13 }}>
+          Asset
+          <select style={input} value={assetId ?? ""} onChange={(e) => setAssetId(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">Choose an asset…</option>
+            {assets.map((a) => (
+              <option key={a.asset_id} value={a.asset_id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {chosen && <ManualPriceForm key={chosen.asset_id} a={chosen} />}
+      </div>
+    </Card>
+  );
+}
+
 export function Assets() {
+  const request = (useLocation().state as ManualPriceRequest | null)?.manualPrice ?? null;
+  const [closedFor, setClosedFor] = useState<number | null>(null);
+  const picker = request !== null && request !== closedFor;
   const { data } = useAssets();
   const { data: settings } = useSettings();
   const providers = settings?.providers ?? [];
   const m = useAssetMutations();
-  const [editing, setEditing] = useState<number | null>(null);
+  const editRequest = (useLocation().state as EditAssetRequest | null)?.editAsset ?? null;
+  const [editing, setEditing] = useState<number | null>(editRequest);
   if (!data) return <PageHeader title="Assets" />;
   return (
     <>
       <PageHeader title="Assets" subtitle="Price sources, manual prices and duplicate merging" actions={<RefreshButton />} />
+      {picker && data.length > 0 && <ManualPricePicker assets={data} onClose={() => setClosedFor(request)} />}
+      <AddBenchmark />
       {data.length === 0 ? (
         <EmptyState title="No assets yet" message="Assets are created when you import statements." action={{ to: "/imports", label: "Go to Imports" }} />
       ) : (
@@ -226,6 +324,7 @@ export function Assets() {
                 <th scope="col">Price source</th>
                 <th scope="col" style={{ textAlign: "right" }}>Latest price</th>
                 <th scope="col" style={{ textAlign: "right" }}>Accounts</th>
+                <th scope="col" style={{ textAlign: "center" }}>Benchmark</th>
                 <th scope="col" style={{ textAlign: "right" }}>
                   <span className="visually-hidden">Actions</span>
                 </th>
@@ -278,6 +377,18 @@ export function Assets() {
                   </td>
                   <td className="num" style={{ textAlign: "right" }}>
                     {a.holders}
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    {!a.merged_into && (
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        checked={a.benchmark}
+                        aria-label={`Use ${a.label} as a benchmark`}
+                        disabled={m.setBenchmarkCandidate.isPending}
+                        onChange={(e) => m.setBenchmarkCandidate.mutate({ assetId: a.asset_id, on: e.target.checked })}
+                      />
+                    )}
                   </td>
                   <td style={{ textAlign: "right" }}>
                     <Button small variant="ghost" aria-expanded={editing === a.asset_id} onClick={() => setEditing(editing === a.asset_id ? null : a.asset_id)}>

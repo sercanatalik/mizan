@@ -202,6 +202,25 @@ loaded at start and recognized for future files with the same columns.
 User mappings are plain TOML: edit them by hand, then restart the app. A user
 mapping cannot take the id of a built-in adapter.
 
+### The Adapters screen
+
+**Records › Adapters** lists every adapter the app can use: the built-in ones
+and the mappings you saved, with type (native, script or mapping), the file
+types each reads, and how many stored imports used it. A saved file that did
+not load is listed with the reason (for example an id that a built-in adapter
+already uses).
+
+- **New mapping from file…** picks a CSV or XLSX file and opens the column
+  mapper for it, even when an adapter already recognizes the file.
+- **Rename** changes a saved mapping's display name; its id and file stay, so
+  detection and earlier imports are unaffected.
+- **Export** writes the manifest to a `.toml` file you choose. Built-in
+  adapters can be exported too (their `adapter.toml`), as a starting point.
+- **Delete** removes a saved mapping after you confirm. It is no longer
+  offered for new files; imports already made with it keep their records.
+
+Built-in adapters cannot be renamed or deleted.
+
 ## Scripts
 
 A script adapter is `adapters/<id>/script.ts`. It exports `detect` and `run`;

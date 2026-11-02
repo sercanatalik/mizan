@@ -12,7 +12,7 @@
   padding: 20px 14px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 16px;
 }
 
 .content {
@@ -95,6 +95,11 @@
 
 .bottom {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--ink-700);
+  padding-top: 10px;
 }
 
 .pageHeader {
@@ -115,4 +120,200 @@
 .pageSubtitle {
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-700);
+  background: var(--ink-800);
+  color: var(--sidebar-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.search:hover {
+  color: #ffffff;
+}
+
+.searchLabel {
+  flex: 1;
+  text-align: left;
+}
+
+.searchKey {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--sidebar-muted);
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 7px;
+  color: var(--sidebar-muted);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.status:hover {
+  color: var(--sidebar-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.statusLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusText {
+  flex: 1 1 100%;
+}
+
+.dotOk,
+.dotBusy,
+.dotIdle {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.dotOk {
+  background: var(--accent-on-dark);
+}
+
+.dotBusy {
+  background: #e0b061;
+}
+
+.dotIdle {
+  background: var(--sidebar-muted);
+}
+
+.bar {
+  flex: 1 1 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ink-700);
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 4px;
+  background: var(--accent-on-dark);
+}
+
+.viewBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.viewField {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.viewLabel {
+  color: var(--text-muted);
+}
+
+.viewSelect {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  height: 32px;
+  max-width: 220px;
+  cursor: pointer;
+}
+
+.viewSpacer {
+  flex: 1;
+}
+
+.addMenu {
+  position: relative;
+}
+
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addButton:hover {
+  background: var(--accent-strong);
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(18, 22, 27, 0.16);
+}
+
+.menuItem {
+  text-align: left;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.menuItem:hover,
+.menuItem:focus-visible {
+  background: var(--accent-soft);
+}
+
+.pageHeaderWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }

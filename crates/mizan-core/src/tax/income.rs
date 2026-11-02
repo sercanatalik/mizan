@@ -3,31 +3,16 @@
 
 use std::collections::HashMap;
 
-use mizan_import::{ChargeType, Code, Date, ImportRecord, Kind, LinkRole, Money};
+use mizan_import::{Code, Date, Money};
 use mizan_storage::{AccountId, StoredActivity};
 use rust_decimal::Decimal;
 
-use super::events::money;
 use super::rates::Rates;
 use super::rows::{Missing, Treatments};
 use super::{Country, TaxYear};
+use crate::income::payments;
+pub use crate::income::{gross, IncomeKind};
 use crate::replay::KeyMap;
-use crate::resolve::instrument_key;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum IncomeKind {
-    Dividend,
-    Interest,
-}
-
-impl IncomeKind {
-    pub fn label(&self) -> &'static str {
-        match self {
-            IncomeKind::Dividend => "dividends",
-            IncomeKind::Interest => "interest",
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IncomeRow {
@@ -41,39 +26,6 @@ pub struct IncomeRow {
     pub missing: Option<Missing>,
 }
 
-fn withholding(r: &ImportRecord) -> Vec<Money> {
-    r.charges
-        .iter()
-        .filter(|c| c.charge_type == ChargeType::WithholdingTax)
-        .map(|c| c.amount.clone())
-        .collect()
-}
-
-/// Gross: the record's gross, else net cash plus withholding in its currency.
-pub fn gross(r: &ImportRecord) -> Option<Money> {
-    if let Some(g) = &r.gross {
-        return Some(g.clone());
-    }
-    let n = r.net_cash.as_ref()?;
-    let w: Decimal = withholding(r)
-        .iter()
-        .filter(|m| m.currency == n.currency)
-        .map(|m| m.amount.value())
-        .sum();
-    Some(money(n.amount.value() + w, n.currency.clone()))
-}
-
-fn is_linked(a: &ImportRecord, b: &ImportRecord) -> bool {
-    let points = |from: &ImportRecord, to: &ImportRecord| {
-        to.external_id.as_deref().is_some_and(|id| {
-            from.links
-                .iter()
-                .any(|l| l.role != LinkRole::TransferPair && l.target == id)
-        })
-    };
-    points(a, b) || points(b, a)
-}
-
 /// Income rows dated in `year` from taxable accounts.
 pub fn income_rows(
     accounts: &[(AccountId, Vec<StoredActivity>)],
@@ -84,46 +36,24 @@ pub fn income_rows(
     year: TaxYear,
 ) -> Vec<IncomeRow> {
     let to: Code = country.currency();
-    let canon = |k: String| keys.get(&k).cloned().unwrap_or(k);
-    let mut out = Vec::new();
-    for (account, stored) in accounts {
-        if !t.taxable(*account) {
-            continue;
-        }
-        let taxes: Vec<&ImportRecord> = stored
-            .iter()
-            .map(|s| &s.record)
-            .filter(|r| r.kind == Kind::Tax)
-            .collect();
-        for r in stored.iter().map(|s| &s.record) {
-            let kind = match r.kind {
-                Kind::Dividend | Kind::Distribution => IncomeKind::Dividend,
-                Kind::Interest => IncomeKind::Interest,
-                _ => continue,
-            };
-            if !year.contains(r.date) {
-                continue;
-            }
+    payments(accounts, keys)
+        .into_iter()
+        .filter(|p| t.taxable(p.account) && year.contains(p.date))
+        .map(|p| {
             // Turkish reports use TCMB rates only; others prefer the statement's.
             let fx = if country == Country::Tr {
                 None
             } else {
-                r.fx.as_ref()
+                p.fx.as_ref()
             };
             let conv = |m: &Money| {
                 rates
-                    .convert(m.amount.value(), &m.currency, &to, r.date, fx)
+                    .convert(m.amount.value(), &m.currency, &to, p.date, fx)
                     .ok_or(Missing::NoRate)
             };
-            let mut withheld: Vec<Money> = withholding(r);
-            withheld.extend(
-                taxes
-                    .iter()
-                    .filter(|x| is_linked(r, x))
-                    .filter_map(|x| x.net_cash.clone().or_else(|| x.gross.clone())),
-            );
-            let g = gross(r).ok_or(Missing::CostUnknown).and_then(|m| conv(&m));
-            let w = withheld
+            let g = p.gross.as_ref().ok_or(Missing::CostUnknown).and_then(conv);
+            let w = p
+                .withheld
                 .iter()
                 .map(conv)
                 .try_fold(Decimal::ZERO, |acc, x| x.map(|v| acc + v));
@@ -131,19 +61,17 @@ pub fn income_rows(
                 (Err(e), _) | (_, Err(e)) => Some(e.clone()),
                 _ => None,
             };
-            out.push(IncomeRow {
-                key: r.instrument.as_ref().and_then(instrument_key).map(canon),
-                account: *account,
-                date: r.date,
-                kind,
+            IncomeRow {
+                key: p.key,
+                account: p.account,
+                date: p.date,
+                kind: p.kind,
                 gross: g.ok(),
                 withheld: w.ok(),
                 missing,
-            });
-        }
-    }
-    out.sort_by_key(|r| (r.date, r.account));
-    out
+            }
+        })
+        .collect()
 }
 
 /// Total gross and withheld per income kind, over rows that could be computed.
@@ -162,7 +90,7 @@ mod tests {
     use super::*;
     use crate::returns::PriceBook;
     use crate::tax::testing::*;
-    use mizan_import::{Charge, Link};
+    use mizan_import::{Charge, ChargeType, ImportRecord, Kind, Link, LinkRole};
 
     fn book() -> PriceBook {
         let mut rates = HashMap::new();

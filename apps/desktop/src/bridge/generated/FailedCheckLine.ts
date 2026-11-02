@@ -8,4 +8,8 @@ label: string,
 /**
  * Short display name: "cash" for currencies, symbol or name for instruments.
  */
-display: string, expected: string, computed: string, };
+display: string, expected: string, computed: string, 
+/**
+ * Statement minus computed, as a plain decimal; empty when either is not a number.
+ */
+difference: string, };

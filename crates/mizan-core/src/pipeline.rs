@@ -503,6 +503,29 @@ pub fn commit(
     p: &Prepared,
     decisions: &Decisions,
 ) -> Result<CommitResult, CommitError> {
+    let batch = build_batch(store, p, decisions)?;
+    let batch_id = store.commit_batch(&batch)?;
+    let skipped_undecided = p
+        .records
+        .iter()
+        .filter(|r| {
+            matches!(r.outcome, Outcome::NeedsConfirmation { .. })
+                && !decisions.contains_key(&r.index())
+        })
+        .count();
+    Ok(CommitResult {
+        batch_id,
+        committed: batch.activities.len(),
+        skipped_undecided,
+    })
+}
+
+/// The batch `commit` would write, without writing it.
+pub fn build_batch(
+    store: &Store,
+    p: &Prepared,
+    decisions: &Decisions,
+) -> Result<NewBatch, CommitError> {
     let committed = committed_in_order(p, decisions);
     let unresolved: Vec<String> = committed
         .iter()
@@ -555,18 +578,5 @@ pub fn commit(
             })
             .collect(),
     };
-    let batch_id = store.commit_batch(&batch)?;
-    let skipped_undecided = p
-        .records
-        .iter()
-        .filter(|r| {
-            matches!(r.outcome, Outcome::NeedsConfirmation { .. })
-                && !decisions.contains_key(&r.index())
-        })
-        .count();
-    Ok(CommitResult {
-        batch_id,
-        committed: batch.activities.len(),
-        skipped_undecided,
-    })
+    Ok(batch)
 }

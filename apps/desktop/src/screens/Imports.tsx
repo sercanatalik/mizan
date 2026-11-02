@@ -2,7 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { PageHeader } from "../app/Layout";
-import type { PickRequest } from "../app/useMenuEvents";
+import type { MapRequest, PickRequest, UndoLastRequest } from "../app/useMenuEvents";
 import { errorMessage } from "../bridge/api";
 import type { AssertionCheck } from "../bridge/generated/AssertionCheck";
 import type { ImportView } from "../bridge/generated/ImportView";
@@ -483,8 +483,17 @@ function Review({ view }: { view: ImportView }) {
 
 function History() {
   const history = useImportHistory().data ?? [];
+  // Activity detail links here as /imports#batch-<id>.
+  const target = useLocation().hash.replace("#batch-", "");
   const undo = useImportUndo();
   const [confirming, setConfirming] = useState<number | null>(null);
+  // Data › Undo last import asks to confirm undoing the most recent import.
+  const undoLast = (useLocation().state as UndoLastRequest | null)?.undoLast;
+  const [handledUndo, setHandledUndo] = useState<number | undefined>(undefined);
+  if (undoLast && undoLast !== handledUndo && history.length > 0) {
+    setHandledUndo(undoLast);
+    setConfirming(Math.max(...history.map((b) => b.id)));
+  }
   if (history.length === 0) return null;
   return (
     <Card title="Import history">
@@ -502,7 +511,13 @@ function History() {
         </thead>
         <tbody>
           {history.map((b) => (
-            <tr key={b.id} data-testid="history-row">
+            <tr
+              key={b.id}
+              id={`batch-${b.id}`}
+              data-testid="history-row"
+              aria-current={String(b.id) === target ? "true" : undefined}
+              style={String(b.id) === target ? { background: "var(--accent-soft, #eef4ff)" } : undefined}
+            >
               <td className="num">{b.committed_at.slice(0, 10)}</td>
               <td className="num">sha256 {short(b.file_sha256)}</td>
               <td>
@@ -542,8 +557,10 @@ function History() {
 export function Imports() {
   const session = useImportSession().data;
   const { pick, openPath, error, busy, unrecognized, clearUnrecognized } = usePicker();
-  const [mapping, setMapping] = useState<Unrecognized | null>(null);
   const location = useLocation();
+  // Adapters › New mapping from file… sends the chosen file here.
+  const mapRequest = (location.state as MapRequest | null)?.map ?? null;
+  const [mapping, setMapping] = useState<Unrecognized | null>(mapRequest);
   const pickToken = (location.state as PickRequest | null)?.pick;
   const handled = useRef<number | undefined>(undefined);
 

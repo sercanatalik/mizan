@@ -13,4 +13,8 @@ label: string, name: string | null, class: string, currency: string | null, sour
 /**
  * Set when this asset was merged into another.
  */
-merged_into: MergedInto | null, manual_prices: Array<ManualPrice>, };
+merged_into: MergedInto | null, manual_prices: Array<ManualPrice>, 
+/**
+ * Marked as a benchmark: offered on Performance, history kept in full.
+ */
+benchmark: boolean, };

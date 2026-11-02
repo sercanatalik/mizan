@@ -39,6 +39,18 @@ fn generate(dir: &Path) {
     mizan_core::returns::ValueHistory::export_all(&cfg).unwrap();
     mizan_core::tax::report::TaxReport::export_all(&cfg).unwrap();
     mizan_core::tax::report::TaxYears::export_all(&cfg).unwrap();
+    mizan_core::activity::ActivityPage::export_all(&cfg).unwrap();
+    mizan_core::activity::ActivityDetail::export_all(&cfg).unwrap();
+    mizan_core::activity::ActivityQuery::export_all(&cfg).unwrap();
+    mizan_core::activity::ActivityForm::export_all(&cfg).unwrap();
+    mizan_core::activity::FormCheck::export_all(&cfg).unwrap();
+    mizan_core::market_data::SeriesPage::export_all(&cfg).unwrap();
+    mizan_core::market_data::SeriesDetail::export_all(&cfg).unwrap();
+    mizan_core::market_data::SeriesFilter::export_all(&cfg).unwrap();
+    mizan_core::accounts::AccountsList::export_all(&cfg).unwrap();
+    mizan_core::accounts::AccountDetail::export_all(&cfg).unwrap();
+    mizan_core::accounts::CurrentUnitsChart::export_all(&cfg).unwrap();
+    mizan_core::income::IncomeView::export_all(&cfg).unwrap();
 }
 
 #[test]

@@ -118,6 +118,12 @@ pub struct Position {
     pub value_note: Option<String>,
     /// Why there is no unrealized gain.
     pub gain_note: Option<String>,
+    /// Acquisition lots still open, first in first out; `None` for short positions.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub open_lots: Option<usize>,
+    /// The Market data series behind the price (for example `tefas:AFT` or
+    /// `asset:12` for prices kept only in this database), when there is one.
+    pub series_key: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -211,8 +217,50 @@ fn failed_lines(
     Ok(out)
 }
 
+/// Which accounts a view covers: all of them, or one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum AccountScope {
+    #[default]
+    All,
+    One(AccountId),
+}
+
+impl AccountScope {
+    /// `None` means all accounts.
+    pub fn from_option(account: Option<i64>) -> Self {
+        account.map_or(Self::All, Self::One)
+    }
+
+    pub fn includes(&self, account: AccountId) -> bool {
+        match self {
+            Self::All => true,
+            Self::One(id) => *id == account,
+        }
+    }
+}
+
 /// Positions, cash and values per account from all stored activities, prices and rates.
 pub fn holdings(store: &Store, today: Date) -> Result<Holdings, StorageError> {
+    holdings_in(store, store, today)
+}
+
+/// Holdings valued through `market` (for example a price book that applies
+/// series edits and the history cache).
+pub fn holdings_in(
+    store: &Store,
+    market: &dyn Market,
+    today: Date,
+) -> Result<Holdings, StorageError> {
+    holdings_scoped(store, market, today, AccountScope::All)
+}
+
+/// Holdings of the accounts in `scope`, valued through `market`.
+pub fn holdings_scoped(
+    store: &Store,
+    market: &dyn Market,
+    today: Date,
+    scope: AccountScope,
+) -> Result<Holdings, StorageError> {
     let base = base_currency(store)?;
     let mut grand = Total::new(base.clone());
     let mut has_prices = false;
@@ -222,10 +270,19 @@ pub fn holdings(store: &Store, today: Date) -> Result<Holdings, StorageError> {
         .map(|a| (a.instrument_key.clone(), a))
         .collect();
     let keys = store.key_map()?;
+    let sources = store.price_sources()?;
     let mut accounts = Vec::new();
 
-    for AccountRow { id, name, .. } in store.list_accounts()? {
+    for AccountRow { id, name, .. } in store
+        .list_accounts()?
+        .into_iter()
+        .filter(|a| scope.includes(a.id))
+    {
         let stored = store.all_activities(id)?;
+        let mut fifo = crate::tax::fifo::FifoBook::default();
+        for e in crate::tax::events::events(&[(id, stored.clone())], &keys) {
+            fifo.apply(&e, id);
+        }
         let recs = ordered(&stored);
         let mut balances = Balances::with_keys(keys.clone());
         let mut book = CostBook::with_keys(keys.clone());
@@ -287,7 +344,7 @@ pub fn holdings(store: &Store, today: Date) -> Result<Holdings, StorageError> {
                     });
             // Valuation.
             let quote = match asset {
-                Some(a) => store.quote(a.id, today)?,
+                Some(a) => market.quote(a.id, today)?,
                 None => None,
             };
             has_prices |= quote.is_some();
@@ -298,7 +355,7 @@ pub fn holdings(store: &Store, today: Date) -> Result<Holdings, StorageError> {
                 }
                 Some(q) => {
                     let v = *qty * q.value;
-                    let bv = total.add_priced(store, v, &q.currency, q.date, today)?;
+                    let bv = total.add_priced(market, v, &q.currency, q.date, today)?;
                     let cost_known = known
                         .then(|| lot.currency.as_ref().map(|c| (lot.cost, c)))
                         .flatten();
@@ -357,11 +414,23 @@ pub fn holdings(store: &Store, today: Date) -> Result<Holdings, StorageError> {
                 quantity: qty.normalize().to_string(),
                 cost,
                 check_flag,
+                open_lots: (*qty > Decimal::ZERO).then(|| {
+                    fifo.lots(id, key)
+                        .iter()
+                        .filter(|l| l.qty > Decimal::ZERO)
+                        .count()
+                }),
+                series_key: asset.and_then(|a| {
+                    sources
+                        .get(&a.id)
+                        .and_then(crate::returns::pricebook::series_key)
+                        .or_else(|| quote.is_some().then(|| format!("asset:{}", a.id)))
+                }),
             });
         }
         let mut cash = Vec::new();
         for (c, v) in balances.cash.iter().filter(|(_, v)| !v.is_zero()) {
-            let bv = total.add(store, *v, c, today)?;
+            let bv = total.add(market, *v, c, today)?;
             cash.push(CashLine {
                 currency: c.to_string(),
                 amount: money_str(*v, c),
@@ -406,6 +475,17 @@ pub struct FailedCheckLine {
     pub display: String,
     pub expected: String,
     pub computed: String,
+    /// Statement minus computed, as a plain decimal; empty when either is not a number.
+    pub difference: String,
+}
+
+/// `expected - computed` for a failed check line.
+fn difference(expected: &str, computed: &str) -> String {
+    use std::str::FromStr;
+    match (Decimal::from_str(expected), Decimal::from_str(computed)) {
+        (Ok(e), Ok(c)) => (e - c).normalize().to_string(),
+        _ => String::new(),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -456,12 +536,82 @@ pub enum AttentionItem {
     },
 }
 
+/// Value of one asset class, in the base currency.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct AllocationRow {
+    /// Asset class from the class hint (`other` when absent), or `cash`.
+    pub class: String,
+    pub value: String,
+    /// Share of the valued net total, in percent with one decimal; empty when
+    /// the total is not positive.
+    pub share: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Allocation {
+    /// Largest first.
+    pub rows: Vec<AllocationRow>,
+    /// Positions and cash lines left out for lack of a price or exchange rate.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub excluded: usize,
+}
+
+/// Base-currency value by asset class; unvalued lines are counted, not guessed.
+pub fn allocation(hold: &Holdings) -> Allocation {
+    use std::str::FromStr;
+    let mut by: BTreeMap<String, Decimal> = BTreeMap::new();
+    let mut excluded = 0;
+    for a in &hold.accounts {
+        let lines = a
+            .positions
+            .iter()
+            .map(|p| (p.class.clone(), p.base_value.as_deref()))
+            .chain(
+                a.cash
+                    .iter()
+                    .map(|c| ("cash".to_string(), c.base_value.as_deref())),
+            );
+        for (class, v) in lines {
+            match v.and_then(|v| Decimal::from_str(v).ok()) {
+                Some(v) => *by.entry(class).or_default() += v,
+                None => excluded += 1,
+            }
+        }
+    }
+    // Shares are of the net total, like position weights: negative cash stays visible.
+    let total: Decimal = by.values().copied().sum();
+    let base = Code::parse(&hold.base_currency).ok();
+    let mut rows: Vec<(String, Decimal)> = by.into_iter().filter(|(_, v)| !v.is_zero()).collect();
+    rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    Allocation {
+        rows: rows
+            .into_iter()
+            .map(|(class, v)| AllocationRow {
+                class,
+                value: base
+                    .as_ref()
+                    .map_or_else(|| v.round_dp(2).to_string(), |c| money_str(v, c)),
+                share: if total > Decimal::ZERO {
+                    format!("{:.1}", (v / total * Decimal::ONE_HUNDRED).round_dp(1))
+                } else {
+                    String::new()
+                },
+            })
+            .collect(),
+        excluded,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Overview {
     pub base_currency: String,
     pub accounts: Vec<AccountStatus>,
     pub attention: Vec<AttentionItem>,
+    /// Value by asset class.
+    pub allocation: Allocation,
     /// Portfolio total in the base currency.
     pub total: TotalView,
     /// Whether any held asset has a stored price.
@@ -484,16 +634,39 @@ fn display_for(key: &str, assets: &HashMap<String, AssetRow>) -> String {
 
 /// Account import status and items needing attention.
 pub fn overview(store: &Store, today: Date) -> Result<Overview, StorageError> {
+    overview_in(store, store, today)
+}
+
+/// Overview valued through `market`.
+pub fn overview_in(
+    store: &Store,
+    market: &dyn Market,
+    today: Date,
+) -> Result<Overview, StorageError> {
+    overview_scoped(store, market, today, AccountScope::All)
+}
+
+/// Overview of the accounts in `scope`, valued through `market`.
+pub fn overview_scoped(
+    store: &Store,
+    market: &dyn Market,
+    today: Date,
+    scope: AccountScope,
+) -> Result<Overview, StorageError> {
     let assets: HashMap<String, AssetRow> = store
         .list_assets()?
         .into_iter()
         .map(|a| (a.instrument_key.clone(), a))
         .collect();
-    let hold = holdings(store, today)?;
+    let hold = holdings_scoped(store, market, today, scope)?;
     let mut accounts = Vec::new();
     let mut attention = Vec::new();
 
-    for a in store.list_accounts()? {
+    for a in store
+        .list_accounts()?
+        .into_iter()
+        .filter(|a| scope.includes(a.id))
+    {
         let results = store.latest_assertion_results(a.id)?;
         let latest_check = results.first().map(|first| {
             let failed: Vec<FailedCheckLine> = results
@@ -505,6 +678,7 @@ pub fn overview(store: &Store, today: Date) -> Result<Overview, StorageError> {
                 .filter(|l| !l.passed)
                 .map(|l| FailedCheckLine {
                     display: display_for(&l.label, &assets),
+                    difference: difference(&l.expected, &l.computed),
                     label: l.label,
                     expected: l.expected,
                     computed: l.computed,
@@ -557,6 +731,7 @@ pub fn overview(store: &Store, today: Date) -> Result<Overview, StorageError> {
     }
     Ok(Overview {
         base_currency: hold.base_currency.clone(),
+        allocation: allocation(&hold),
         accounts,
         attention,
         total: hold.total.clone(),
@@ -661,7 +836,20 @@ fn lines(map: &BTreeMap<Code, Decimal>) -> Vec<CashLine> {
 /// Net contributions (deposits minus withdrawals) per period, account and currency.
 /// Internal transfers are not contributions. Activities after `today` are ignored.
 pub fn contributions(store: &Store, today: Date) -> Result<Contributions, StorageError> {
-    let accounts = store.list_accounts()?;
+    contributions_scoped(store, today, AccountScope::All)
+}
+
+/// Net contributions of the accounts in `scope`.
+pub fn contributions_scoped(
+    store: &Store,
+    today: Date,
+    scope: AccountScope,
+) -> Result<Contributions, StorageError> {
+    let accounts: Vec<AccountRow> = store
+        .list_accounts()?
+        .into_iter()
+        .filter(|a| scope.includes(a.id))
+        .collect();
     let mut activity: Vec<(AccountRow, Vec<StoredActivity>)> = Vec::new();
     for a in accounts {
         let acts = store.all_activities(a.id)?;

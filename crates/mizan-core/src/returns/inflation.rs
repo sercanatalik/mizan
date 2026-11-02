@@ -8,9 +8,44 @@ use std::str::FromStr;
 use chrono::NaiveDate;
 use mizan_import::{Code, Date};
 use mizan_storage::inflation::{series_for, InflationSeries, YearMonth};
-use mizan_storage::{HistoryCache, StorageError};
+use std::collections::BTreeMap;
+
+use mizan_storage::{HistoryCache, SeriesKind, StorageError, Store};
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
+
+/// A monthly index series from the history cache with this database's edits
+/// applied: edited and added months replace or extend the cache, and ignored
+/// months are left out.
+pub fn monthly_values(
+    store: &Store,
+    cache: Option<&HistoryCache>,
+    source: &str,
+    id: &str,
+) -> Result<BTreeMap<YearMonth, Decimal>, StorageError> {
+    let mut out = BTreeMap::new();
+    if let Some(c) = cache {
+        for v in c.inflation_index(source, id)? {
+            if let (Some(m), Ok(x)) = (YearMonth::parse(&v.month), Decimal::from_str(&v.value)) {
+                out.insert(m, x);
+            }
+        }
+    }
+    for e in store.series_edits(SeriesKind::Index, &format!("{source}:{id}"))? {
+        let Some(m) = YearMonth::parse(&e.period) else {
+            continue;
+        };
+        match e.value.as_deref().map(Decimal::from_str) {
+            Some(Ok(x)) if !e.ignored => {
+                out.insert(m, x);
+            }
+            _ => {
+                out.remove(&m);
+            }
+        }
+    }
+    Ok(out)
+}
 
 /// The index on one day.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -89,23 +124,18 @@ pub enum Inflation {
 
 impl Inflation {
     /// Load the base currency's index from the cache. Never touches the network.
-    pub fn load(cache: Option<&HistoryCache>, base: &Code) -> Result<Self, StorageError> {
+    pub fn load(
+        store: &Store,
+        cache: Option<&HistoryCache>,
+        base: &Code,
+    ) -> Result<Self, StorageError> {
         let Some(series) = series_for(base.as_str()) else {
             return Ok(Inflation::Unavailable(format!(
                 "no inflation index for {base}"
             )));
         };
-        let values = match cache {
-            Some(c) => c.inflation_index(series.source, series.id)?,
-            None => vec![],
-        };
-        let parsed = values.iter().filter_map(|v| {
-            Some((
-                YearMonth::parse(&v.month)?,
-                Decimal::from_str(&v.value).ok()?,
-            ))
-        });
-        Ok(match DailyIndex::new(*series, parsed) {
+        let values = monthly_values(store, cache, series.source, series.id)?;
+        Ok(match DailyIndex::new(*series, values) {
             Some(idx) => Inflation::Ready(idx),
             None => Inflation::Unavailable(format!(
                 "the {base} inflation index has not been downloaded yet"
@@ -164,13 +194,13 @@ mod tests {
     fn unavailable_reasons() {
         let chf = Code::parse("CHF").unwrap();
         assert_eq!(
-            Inflation::load(None, &chf).unwrap(),
+            Inflation::load(&Store::open_in_memory().unwrap(), None, &chf).unwrap(),
             Inflation::Unavailable("no inflation index for CHF".into())
         );
         let gbp = Code::parse("GBP").unwrap();
         let cache = HistoryCache::open_in_memory().unwrap();
         assert_eq!(
-            Inflation::load(Some(&cache), &gbp).unwrap(),
+            Inflation::load(&Store::open_in_memory().unwrap(), Some(&cache), &gbp).unwrap(),
             Inflation::Unavailable("the GBP inflation index has not been downloaded yet".into())
         );
     }

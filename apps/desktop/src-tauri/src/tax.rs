@@ -150,6 +150,12 @@ pub async fn cmd_export_tax_csv(
     .await
 }
 
+/// Accounts the Tax screen lists (tests).
+#[cfg(test)]
+pub fn report_accounts_for_tests(state: &AppState) -> usize {
+    tax_report(state, "tr", "2026", "t").unwrap().accounts.len()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

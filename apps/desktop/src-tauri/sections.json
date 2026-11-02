@@ -1,0 +1,72 @@
+[
+  {
+    "id": "overview",
+    "label": "Overview",
+    "shortcut": 1
+  },
+  {
+    "id": "inbox",
+    "label": "Inbox",
+    "shortcut": 2
+  },
+  {
+    "id": "holdings",
+    "label": "Holdings",
+    "shortcut": 3
+  },
+  {
+    "id": "accounts",
+    "label": "Accounts",
+    "shortcut": 4
+  },
+  {
+    "id": "performance",
+    "label": "Performance",
+    "shortcut": 5
+  },
+  {
+    "id": "income",
+    "label": "Income",
+    "shortcut": 6
+  },
+  {
+    "id": "activity",
+    "label": "Activity",
+    "shortcut": 7
+  },
+  {
+    "id": "imports",
+    "label": "Imports",
+    "shortcut": 8
+  },
+  {
+    "id": "adapters",
+    "label": "Adapters",
+    "shortcut": 9
+  },
+  {
+    "id": "tax",
+    "label": "Tax",
+    "shortcut": null
+  },
+  {
+    "id": "exports",
+    "label": "Exports",
+    "shortcut": null
+  },
+  {
+    "id": "assets",
+    "label": "Assets",
+    "shortcut": null
+  },
+  {
+    "id": "market-data",
+    "label": "Market data",
+    "shortcut": null
+  },
+  {
+    "id": "settings",
+    "label": "Settings",
+    "shortcut": null
+  }
+]

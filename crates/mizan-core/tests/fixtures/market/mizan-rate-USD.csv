@@ -1,0 +1,4 @@
+period,value,currency,source,tag,original,fetched_at
+2025-06-10,39.05,TRY,edited,edited,39.00,f
+2025-06-11,39.1,TRY,edited,edited,,
+2025-06-19,39.40,TRY,cache,ignored,,f

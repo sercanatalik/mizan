@@ -118,8 +118,14 @@ says "since" that date.
 
 ## Benchmark
 
-On **Performance**, choose any asset with stored prices as the benchmark (for
-example a TEFAS fund), or none. Its return for a period is its price on or
+On **Performance**, choose any asset with stored prices, or any asset marked
+as a benchmark on **Assets**, as the benchmark (for example a TEFAS fund), or
+none. On Assets, the **Benchmark** switch marks an asset, and **Benchmarks ›
+Add benchmark** adds an instrument you don't hold from a Yahoo Finance or
+Twelve Data symbol or a TEFAS fund code. Marked assets get their price history
+from the first activity of the account that holds them, or from your
+portfolio's first activity when you don't hold them, and the download starts
+right away. Its return for a period is its price on or
 before today divided by its price on or before the period start, minus one,
 both converted to the base currency. Without a price at the start it reads
 "not available: no price before" that date. The growth chart shows the
@@ -173,7 +179,7 @@ is −6.67%.
 
 ## Base currency
 
-All values and returns are in the base currency (Settings › Valuation).
+All values and returns are in the base currency (Settings › Valuation, or the view bar).
 Changing it, a price source, a manual price, or imported activities recomputes
 everything from stored data, without a network request. Real returns always use
 the base currency's own inflation index.

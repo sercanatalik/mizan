@@ -39,7 +39,7 @@ fn migration_0002_applies_on_a_database_created_before_it() {
             .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.schema_version().unwrap(), 4);
+    assert_eq!(s.schema_version().unwrap(), 9);
     assert_eq!(s.count("accounts").unwrap(), 1, "existing data kept");
     assert_eq!(s.setting("base_currency").unwrap().as_deref(), Some("TRY"));
     assert_eq!(
@@ -279,7 +279,7 @@ fn migration_0003_keeps_existing_price_sources() {
         .unwrap();
     }
     let mut s = Store::open(&path).unwrap();
-    assert_eq!(s.schema_version().unwrap(), 4);
+    assert_eq!(s.schema_version().unwrap(), 9);
     assert_eq!(
         s.price_source(1).unwrap(),
         Some(PriceSourceKind::Tefas {
@@ -350,4 +350,40 @@ fn empty_symbol_is_refused_and_source_unchanged() {
         .unwrap_err();
     assert!(err.to_string().contains("needs a symbol"), "{err}");
     assert_eq!(s.price_source(a).unwrap(), Some(PriceSourceKind::Manual));
+}
+
+#[test]
+fn benchmark_candidates_are_kept_canonical_and_existing() {
+    let mut s = Store::open_in_memory().unwrap();
+    let hint = |sym: &str| mizan_import::InstrumentHint {
+        symbol: Some(sym.into()),
+        ..Default::default()
+    };
+    let a = s.create_asset("sym:A@", &hint("A")).unwrap();
+    let b = s.create_asset("sym:B@", &hint("B")).unwrap();
+    assert!(s.benchmark_candidates().unwrap().is_empty());
+    s.set_benchmark_candidate(a, true).unwrap();
+    s.set_benchmark_candidate(b, true).unwrap();
+    s.set_benchmark_candidate(a, true).unwrap();
+    assert_eq!(
+        s.benchmark_candidates()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>(),
+        [a, b]
+    );
+    s.set_benchmark_candidate(b, false).unwrap();
+    assert_eq!(
+        s.benchmark_candidates()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>(),
+        [a]
+    );
+    s.set_setting(mizan_storage::BENCHMARK_CANDIDATES_KEY, "x, 999 ,")
+        .unwrap();
+    assert!(
+        s.benchmark_candidates().unwrap().is_empty(),
+        "junk and missing assets are ignored"
+    );
 }

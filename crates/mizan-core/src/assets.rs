@@ -5,16 +5,84 @@ use mizan_storage::PriceSourceKind;
 
 /// Suggest a TEFAS fund code when an asset without a price source looks like a
 /// TEFAS fund: class hint `fund` or a TRY quote currency, together with a
-/// three-letter upper-case symbol. A suggestion is never applied automatically.
+/// three-character upper-case code of letters and digits with at least one
+/// letter (`AFT`, `AH1`). A suggestion is never applied automatically.
 pub fn tefas_suggestion(hint: &InstrumentHint, source: Option<&PriceSourceKind>) -> Option<String> {
     if source.is_some() {
         return None;
     }
     let symbol = hint.symbol.as_deref()?.trim();
-    let looks_like_code = symbol.len() == 3 && symbol.bytes().all(|b| b.is_ascii_uppercase());
+    let looks_like_code = is_tefas_code(symbol) && symbol.len() == 3;
     let fund_like = hint.class_hint == Some(ClassHint::Fund)
         || hint.currency.as_ref().is_some_and(|c| c.as_str() == "TRY");
     (looks_like_code && fund_like).then(|| symbol.to_owned())
+}
+
+/// A TEFAS fund code: up to six upper-case letters and digits, at least one letter.
+pub fn is_tefas_code(code: &str) -> bool {
+    (1..=6).contains(&code.len())
+        && code
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+        && code.bytes().any(|b| b.is_ascii_uppercase())
+}
+
+/// The source an account's default provider gives one of its assets: the
+/// imported symbol as the TEFAS code or Twelve Data symbol, and for Yahoo the
+/// suggested Yahoo symbol, else the plain symbol. `None` when the asset has no
+/// usable symbol.
+pub fn account_default_source(provider: &str, hint: &InstrumentHint) -> Option<PriceSourceKind> {
+    let symbol = hint.symbol.as_deref()?.trim().to_uppercase();
+    if symbol.is_empty() || symbol.contains(char::is_whitespace) {
+        return None;
+    }
+    match provider {
+        "tefas" => is_tefas_code(&symbol).then_some(PriceSourceKind::Tefas { fund_code: symbol }),
+        "yahoo" => Some(PriceSourceKind::Yahoo {
+            symbol: listed_suggestion(hint, None).unwrap_or(symbol),
+        }),
+        "twelvedata" => Some(PriceSourceKind::TwelveData { symbol }),
+        _ => None,
+    }
+}
+
+/// What applying the account defaults did.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AppliedSources {
+    /// Assets that got a price source.
+    pub set: Vec<mizan_storage::AssetId>,
+    /// Assets left without one: no usable symbol for the provider.
+    pub skipped: Vec<String>,
+}
+
+/// Give every asset held in an account with a default provider, and without
+/// a price source, the source that provider implies. Sources the user chose
+/// are never replaced. Run after imports, manual entries and setting a default.
+pub fn apply_account_sources(store: &mut Store) -> Result<AppliedSources, StorageError> {
+    let mut out = AppliedSources::default();
+    let assets = store.list_assets()?;
+    for (account, provider) in store.account_price_sources()? {
+        for id in store.account_asset_ids(account)? {
+            if out.set.contains(&id) || store.price_source(id)?.is_some() {
+                continue;
+            }
+            let Some(asset) = assets.iter().find(|a| a.id == id) else {
+                continue;
+            };
+            match account_default_source(&provider, &asset.hint) {
+                Some(src) => {
+                    store.set_price_source(id, Some(&src))?;
+                    out.set.push(id);
+                }
+                None => out
+                    .skipped
+                    .push(label_of(&asset.hint, &asset.instrument_key)),
+            }
+        }
+    }
+    out.skipped.sort();
+    out.skipped.dedup();
+    Ok(out)
 }
 
 /// Yahoo suffix per ISO 10383 exchange code (MIC). US exchanges have none.
@@ -148,6 +216,39 @@ mod tests {
     }
 
     #[test]
+    fn tefas_codes_may_contain_digits() {
+        assert_eq!(
+            tefas_suggestion(&hint(json!({"symbol": "AH1", "class_hint": "fund"})), None)
+                .as_deref(),
+            Some("AH1")
+        );
+        assert!(!is_tefas_code("123"));
+        assert!(!is_tefas_code("ah1"));
+    }
+
+    #[test]
+    fn account_default_uses_the_symbol() {
+        let h = hint(json!({"symbol": "ah5", "class_hint": "fund"}));
+        assert_eq!(
+            account_default_source("tefas", &h),
+            Some(PriceSourceKind::Tefas {
+                fund_code: "AH5".into()
+            })
+        );
+        let v = hint(json!({"symbol": "VWCE", "mic": "XETR"}));
+        assert_eq!(
+            account_default_source("yahoo", &v),
+            Some(PriceSourceKind::Yahoo {
+                symbol: "VWCE.DE".into()
+            })
+        );
+        assert_eq!(
+            account_default_source("tefas", &hint(json!({"name": "No symbol"}))),
+            None
+        );
+    }
+
+    #[test]
     fn no_suggestion_otherwise() {
         assert_eq!(
             tefas_suggestion(&hint(json!({"symbol": "AAPL", "currency": "USD"})), None),
@@ -189,7 +290,7 @@ use mizan_import::Date;
 use mizan_storage::{StorageError, Store};
 use serde::Serialize;
 
-use crate::portfolio::{holdings, PriceView};
+use crate::portfolio::PriceView;
 use crate::valuation::{is_stale, Market};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -302,6 +403,8 @@ pub struct AssetView {
     /// Set when this asset was merged into another.
     pub merged_into: Option<MergedInto>,
     pub manual_prices: Vec<ManualPrice>,
+    /// Marked as a benchmark: offered on Performance, history kept in full.
+    pub benchmark: bool,
 }
 
 fn label_of(h: &InstrumentHint, key: &str) -> String {
@@ -313,9 +416,19 @@ fn label_of(h: &InstrumentHint, key: &str) -> String {
 
 /// Every asset with its price source, suggestion, latest price and holders.
 pub fn assets_view(store: &Store, today: Date) -> Result<Vec<AssetView>, StorageError> {
-    let hold = holdings(store, today)?;
+    assets_view_in(store, store, today)
+}
+
+/// The Assets screen valued through `market`.
+pub fn assets_view_in(
+    store: &Store,
+    market: &dyn Market,
+    today: Date,
+) -> Result<Vec<AssetView>, StorageError> {
+    let hold = crate::portfolio::holdings_in(store, market, today)?;
     let assets = store.list_assets()?;
     let merges = store.active_merges()?;
+    let benchmarks = store.benchmark_candidates()?;
     let mut out = Vec::new();
     for a in &assets {
         let source = store.price_source(a.id)?;
@@ -324,7 +437,7 @@ pub fn assets_view(store: &Store, today: Date) -> Result<Vec<AssetView>, Storage
             .iter()
             .filter(|acc| acc.positions.iter().any(|p| p.asset_id == Some(a.id)))
             .count();
-        let latest_price = store.quote(a.id, today)?.map(|q| PriceView {
+        let latest_price = market.quote(a.id, today)?.map(|q| PriceView {
             value: q.value.normalize().to_string(),
             currency: q.currency.to_string(),
             date: q.date.to_string(),
@@ -371,6 +484,7 @@ pub fn assets_view(store: &Store, today: Date) -> Result<Vec<AssetView>, Storage
             holders,
             merged_into,
             manual_prices,
+            benchmark: benchmarks.contains(&a.id),
         });
     }
     Ok(out)

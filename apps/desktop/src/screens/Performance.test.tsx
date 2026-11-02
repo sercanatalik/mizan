@@ -93,9 +93,9 @@ test("periods include 1M and 3M and ask for that period", async () => {
   renderApp("/performance");
   await screen.findByRole("region", { name: "Time-weighted return" });
   await userEvent.click(screen.getByRole("button", { name: "1M" }));
-  expect(invoke).toHaveBeenCalledWith("cmd_performance", { period: "one_month" });
+  expect(invoke).toHaveBeenCalledWith("cmd_performance", { period: "one_month", account_id: null });
   await userEvent.click(screen.getByRole("button", { name: "3M" }));
-  expect(invoke).toHaveBeenCalledWith("cmd_performance", { period: "three_months" });
+  expect(invoke).toHaveBeenCalledWith("cmd_performance", { period: "three_months", account_id: null });
 });
 
 test("an account without exchange rates reads not available and the card says it is excluded", async () => {
@@ -193,4 +193,38 @@ test("Real without an index shows the reason instead of figures", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Real" }));
   expect(screen.getByRole("region", { name: "Real returns" })).toHaveTextContent("Real returns are not available: no inflation index for CHF.");
   expect(screen.queryByRole("region", { name: "Time-weighted return" })).not.toBeInTheDocument();
+});
+
+test("the period lives in the view bar and is kept when leaving the screen", async () => {
+  let stored = { account_id: null as number | null, period: "ytd", real: false };
+  serve(undefined, {
+    cmd_view_get: () => stored,
+    cmd_view_set: (a: unknown) => (stored = (a as { view: typeof stored }).view),
+  });
+  const { router } = renderApp("/performance");
+  const bar = await screen.findByRole("toolbar", { name: "View" });
+  await userEvent.click(within(bar).getByRole("button", { name: "1Y" }));
+  expect(invoke).toHaveBeenCalledWith("cmd_performance", { period: "last12_months", account_id: null });
+  expect(invoke).toHaveBeenCalledWith("cmd_view_set", { view: { account_id: null, period: "last12_months", real: false } });
+  await router.navigate("/holdings");
+  await router.navigate("/performance");
+  const again = await screen.findByRole("toolbar", { name: "View" });
+  expect(within(again).getByRole("button", { name: "1Y" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("a scoped account asks for its own performance and names it", async () => {
+  serve(undefined, {
+    cmd_accounts: [{ id: 2, name: "Pension", hints: [] }],
+    cmd_view_get: { account_id: 2, period: "ytd", real: false },
+  });
+  renderApp("/performance");
+  expect(await screen.findByText(/^Pension · /)).toBeInTheDocument();
+  expect(invoke).toHaveBeenCalledWith("cmd_performance", { period: "ytd", account_id: 2 });
+  expect(invoke).toHaveBeenCalledWith("cmd_contributions", { account_id: 2 });
+});
+
+test("the benchmark picker links to Assets for choosing benchmarks", async () => {
+  renderApp("/performance");
+  const link = await screen.findByRole("link", { name: "Choose benchmarks on Assets" });
+  expect(link).toHaveAttribute("href", "/assets");
 });

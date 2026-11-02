@@ -13,14 +13,26 @@ pub type AccountId = i64;
 pub type AssetId = i64;
 pub type BatchId = i64;
 
+pub mod accounts;
+pub mod activity;
+pub mod edits;
 pub mod history;
+pub mod inbox;
 pub mod inflation;
 pub mod market;
-pub use history::{
-    CachedFundPrice, CachedIndexValue, CachedListedPrice, CachedRate, Dated, FetchStatus,
-    FetchedUnit, HistoryCache, InflationCheck,
+pub mod reset;
+pub use accounts::{AccountMerge, MergeCounts};
+pub use activity::{
+    ActivityFilter, AmendedActivity, CashTotals, SourceFilter, StoredPage, MANUAL_ADAPTER,
 };
+pub use edits::{SeriesEdit, SeriesKind};
+pub use history::{
+    CachedFundPrice, CachedIndexValue, CachedListedPrice, CachedPoint, CachedRate, CachedSeries,
+    Dated, FetchStatus, FetchedUnit, HistoryCache, InflationCheck,
+};
+pub use inbox::Snooze;
 pub use market::*;
+pub use reset::{ResetScope, DEFAULT_SETTINGS};
 
 /// Migrations in order. The database's `user_version` records how many have run.
 const MIGRATIONS: &[&str] = &[
@@ -28,6 +40,11 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0002_market.sql"),
     include_str!("../migrations/0003_listed.sql"),
     include_str!("../migrations/0004_tax.sql"),
+    include_str!("../migrations/0005_amendments.sql"),
+    include_str!("../migrations/0006_series_edits.sql"),
+    include_str!("../migrations/0007_account_merges.sql"),
+    include_str!("../migrations/0008_account_price_source.sql"),
+    include_str!("../migrations/0009_inbox_snoozes.sql"),
 ];
 
 #[derive(Debug, Error)]
@@ -291,6 +308,13 @@ impl Store {
     /// On any error nothing is written.
     pub fn commit_batch(&mut self, batch: &NewBatch) -> Result<BatchId> {
         let tx = self.conn.transaction()?;
+        let batch_id = Self::insert_batch(&tx, batch)?;
+        tx.commit()?;
+        Ok(batch_id)
+    }
+
+    /// Insert a batch with its activities and assertions inside `tx`.
+    fn insert_batch(tx: &rusqlite::Transaction, batch: &NewBatch) -> Result<BatchId> {
         tx.execute(
             "INSERT INTO import_batches (adapter, adapter_version, file_sha256) VALUES (?1, ?2, ?3)",
             params![batch.adapter, batch.adapter_version, batch.file_sha256],
@@ -347,7 +371,6 @@ impl Store {
                 }
             }
         }
-        tx.commit()?;
         Ok(batch_id)
     }
 
@@ -467,12 +490,25 @@ impl Store {
 
     // ---- listings for the app ----
 
+    /// Accounts in use: every account except those merged into another.
     pub fn list_accounts(&self) -> Result<Vec<AccountRow>> {
-        let mut stmt = self.conn.prepare(
+        self.accounts_where(
+            "a.id NOT IN (SELECT from_account FROM account_merges WHERE undone_at IS NULL)",
+        )
+    }
+
+    /// Every account, including those merged into another.
+    pub fn list_all_accounts(&self) -> Result<Vec<AccountRow>> {
+        self.accounts_where("1 = 1")
+    }
+
+    fn accounts_where(&self, filter: &str) -> Result<Vec<AccountRow>> {
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT a.id, a.name, h.hint, a.tax_treatment FROM accounts a
              LEFT JOIN account_hints h ON h.account_id = a.id
-             ORDER BY a.id, h.hint",
-        )?;
+             WHERE {filter}
+             ORDER BY a.id, h.hint"
+        ))?;
         let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, AccountId>(0)?,
@@ -532,16 +568,21 @@ impl Store {
     }
 
     /// Committed imports, newest first.
+    /// Committed imports, newest first. Manual entries are not imports and are left out.
     pub fn list_batches(&self) -> Result<Vec<BatchRow>> {
-        let mut stmt = self.conn.prepare(
+        self.batches_where(&format!("b.adapter <> '{MANUAL_ADAPTER}'"), [])
+    }
+
+    fn batches_where(&self, filter: &str, p: impl rusqlite::Params) -> Result<Vec<BatchRow>> {
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT b.id, b.committed_at, b.adapter, b.adapter_version, b.file_sha256,
                 (SELECT COUNT(*) FROM activities WHERE batch_id = b.id),
                 (SELECT COUNT(*) FROM assertions WHERE batch_id = b.id),
                 (SELECT MIN(r.passed) FROM assertion_results r JOIN assertions s ON s.id = r.assertion_id
                   WHERE s.batch_id = b.id)
-             FROM import_batches b ORDER BY b.id DESC",
-        )?;
-        let rows = stmt.query_map([], |r| {
+             FROM import_batches b WHERE {filter} ORDER BY b.id DESC"
+        ))?;
+        let rows = stmt.query_map(p, |r| {
             Ok(BatchRow {
                 id: r.get(0)?,
                 committed_at: r.get(1)?,
@@ -610,6 +651,10 @@ impl Store {
             [batch_id],
         )?;
         tx.execute("DELETE FROM assertions WHERE batch_id = ?1", [batch_id])?;
+        tx.execute(
+            "DELETE FROM activity_amendments WHERE activity_id IN (SELECT id FROM activities WHERE batch_id = ?1)",
+            [batch_id],
+        )?;
         tx.execute("DELETE FROM activities WHERE batch_id = ?1", [batch_id])?;
         tx.execute("DELETE FROM import_batches WHERE id = ?1", [batch_id])?;
         tx.commit()?;
@@ -634,7 +679,7 @@ mod tests {
             .unwrap();
         let mut store = Store { conn };
         store.migrate().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 4);
+        assert_eq!(store.schema_version().unwrap(), MIGRATIONS.len() as i64);
         let accounts = store.list_accounts().unwrap();
         assert_eq!(accounts[0].tax_treatment, TaxTreatment::Taxable);
 

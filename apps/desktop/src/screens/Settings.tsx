@@ -1,176 +1,9 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { PageHeader } from "../app/Layout";
-import { errorMessage } from "../bridge/api";
-import type { InflationStatusView } from "../bridge/generated/InflationStatusView";
-import type { ProviderView } from "../bridge/generated/ProviderView";
-import type { RefreshReport } from "../bridge/generated/RefreshReport";
-import type { SourceProgress } from "../bridge/generated/SourceProgress";
-import { useBackfillStatus, useSettings, useSettingsMutations } from "../bridge/queries";
-import { Badge, Button, Card, DataTable } from "../ui";
-import { RefreshButton } from "./RefreshButton";
-
-const STATUS: Record<string, { label: string; tone: "accent" | "warn" | "neutral" }> = {
-  ok: { label: "OK", tone: "accent" },
-  failed: { label: "Failed", tone: "warn" },
-  disabled: { label: "Disabled", tone: "neutral" },
-  idle: { label: "Nothing to fetch", tone: "neutral" },
-  needs_key: { label: "Needs an API key", tone: "warn" },
-};
-
-function when(ts: string | null | undefined): string {
-  return ts ? ts.replace("T", " ").replace(/:\d\dZ$/, " UTC").replace("Z", " UTC") : "never";
-}
-
-function Report({ report }: { report: RefreshReport }) {
-  return (
-    <ul style={{ margin: 0, padding: 0, listStyle: "none" }} aria-label="Last refresh">
-      {report.sources.map((s) => (
-        <li key={s.id} style={{ padding: "8px 0", borderTop: "1px solid var(--divider)", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-          <strong style={{ minWidth: 60 }}>{s.name}</strong>
-          <Badge tone={STATUS[s.status]?.tone ?? "neutral"}>{STATUS[s.status]?.label ?? s.status}</Badge>
-          {s.updated > 0 && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.updated} updated</span>}
-          {s.messages.map((m) => (
-            <span key={m} style={{ fontSize: 12, color: s.status === "failed" ? "var(--warn-strong)" : "var(--text-muted)" }}>
-              {m}
-            </span>
-          ))}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-const HISTORY: Record<string, { label: string; tone: "accent" | "warn" | "neutral" }> = {
-  running: { label: "Downloading", tone: "accent" },
-  done: { label: "Complete", tone: "accent" },
-  waiting: { label: "Waiting", tone: "neutral" },
-  failed: { label: "Failed", tone: "warn" },
-  disabled: { label: "Disabled", tone: "neutral" },
-  idle: { label: "Not needed", tone: "neutral" },
-  needs_key: { label: "Waiting for an API key", tone: "neutral" },
-};
-
-/** One line describing a provider's history backfill. */
-export function historyText(s: SourceProgress): string {
-  const unit = s.unit === "days" || s.unit === "years" ? s.unit : "months";
-  switch (s.state) {
-    case "running":
-      return `${s.done} of ${s.planned} ${unit}`;
-    case "done":
-      return "All history needed is downloaded";
-    case "waiting":
-      return s.planned > 0 ? `${s.planned} ${unit} missing · continues after the next refresh` : "Continues after the next refresh";
-    case "failed":
-      return s.error ?? "Failed";
-    case "disabled":
-      return "Provider is off; no history is downloaded";
-    case "needs_key":
-      return `Save a ${s.name} API key above to download history`;
-    case "idle":
-      if (s.id === "tcmb") return "Only TRY is used, or nothing is imported yet; no exchange rates needed";
-      if (s.id === "tefas") return "Nothing to download: no fund priced from TEFAS has activities yet";
-      return `Nothing to download: no asset priced from ${s.name} has activities yet`;
-  }
-}
-
-/** Save or clear a provider's API key. Only a masked hint of a saved key is ever shown. */
-function ApiKeyField({ p }: { p: ProviderView }) {
-  const m = useSettingsMutations();
-  const [key, setKey] = useState("");
-  const id = `api-key-${p.id}`;
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 6 }}>
-      <label htmlFor={id} style={{ fontSize: 12 }}>
-        {p.name} API key
-      </label>
-      {p.api_key_hint ? (
-        <>
-          <code data-testid="api-key-hint">{p.api_key_hint}</code>
-          <Button small variant="ghost" disabled={m.setApiKey.isPending} onClick={() => m.setApiKey.mutate({ id: p.id, key: null })}>
-            Clear key
-          </Button>
-        </>
-      ) : (
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>not saved</span>
-      )}
-      <input
-        id={id}
-        type="password"
-        autoComplete="off"
-        spellCheck={false}
-        value={key}
-        placeholder={p.api_key_hint ? "Replace key" : "Paste your key"}
-        onChange={(e) => setKey(e.target.value)}
-        style={{ font: "inherit", fontSize: 13, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border-strong)", width: 200 }}
-      />
-      <Button
-        small
-        disabled={!key.trim() || m.setApiKey.isPending}
-        onClick={() => m.setApiKey.mutate({ id: p.id, key: key.trim() }, { onSuccess: () => setKey("") })}
-      >
-        Save key
-      </Button>
-      {m.setApiKey.error && (
-        <span role="alert" style={{ fontSize: 12, color: "var(--warn-strong)" }}>
-          {errorMessage(m.setApiKey.error)}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function PriceHistory() {
-  const { data } = useBackfillStatus();
-  if (!data) return null;
-  return (
-    <Card title="Price history" label="Price history">
-      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-        {data.sources.map((s) => (
-          <li key={s.id} data-testid="history-row" style={{ padding: "8px 0", borderTop: "1px solid var(--divider)", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-            <strong style={{ minWidth: 60 }}>{s.name}</strong>
-            <Badge tone={HISTORY[s.state]?.tone ?? "neutral"}>{HISTORY[s.state]?.label ?? s.state}</Badge>
-            <span style={{ fontSize: 13, color: s.state === "failed" ? "var(--warn-strong)" : "var(--text-secondary)" }}>{historyText(s)}</span>
-            {s.note && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.note}</span>}
-          </li>
-        ))}
-      </ul>
-      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-        Past prices and rates are downloaded once after a refresh and kept on this computer
-        {data.cache_path ? (
-          <>
-            {" "}
-            in <code>{data.cache_path}</code>
-          </>
-        ) : null}
-        . The cache holds public market data only; deleting it is safe.
-      </span>
-    </Card>
-  );
-}
-
-/** The inflation index behind real returns, for the current base currency. */
-export function inflationText(i: InflationStatusView): string {
-  if (!i.label) return i.note ?? "";
-  return i.through ? `${i.label} · through ${i.through}` : i.label;
-}
-
-function InflationStatus({ i }: { i: InflationStatusView }) {
-  return (
-    <div data-testid="inflation-status" style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 13 }}>
-      <span>
-        <span style={{ color: "var(--text-secondary)" }}>Inflation index for real returns: </span>
-        {inflationText(i)}
-      </span>
-      {i.label && i.note && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{i.note}</span>}
-      {i.last_checked && (
-        <span style={{ fontSize: 12, color: i.last_check_failed ? "var(--warn-strong)" : "var(--text-muted)" }}>
-          Last checked {when(i.last_checked)}
-          {i.last_check_failed ? " (failed; see the last refresh)" : ""}
-        </span>
-      )}
-    </div>
-  );
-}
+import { errorMessage, type ResetScopeName } from "../bridge/api";
+import { useResetData, useResetPreview, useSettings, useSettingsMutations } from "../bridge/queries";
+import { Button, Card } from "../ui";
 
 export function Settings() {
   const { data } = useSettings();
@@ -195,56 +28,118 @@ export function Settings() {
           </select>
         </label>
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Totals are converted with TCMB forex buying rates through TRY.</span>
-        <InflationStatus i={data.inflation} />
       </Card>
-      <Card title="Market data providers" aside={<RefreshButton />}>
-        <DataTable label="Market data providers" minWidth={560}>
-          <thead>
-            <tr>
-              <th scope="col">Provider</th>
-              <th scope="col">Supplies</th>
-              <th scope="col">Last successful refresh</th>
-              <th scope="col" style={{ textAlign: "right" }}>
-                Enabled
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.providers.map((p) => (
-              <tr key={p.id} data-testid="provider-row">
-                <td style={{ fontWeight: 500 }}>{p.name}</td>
-                <td style={{ color: "var(--text-secondary)" }}>
-                  {p.supplies}
-                  {p.needs_api_key && <ApiKeyField p={p} />}
-                </td>
-                <td className="num">{when(p.last_success)}</td>
-                <td style={{ textAlign: "right" }}>
-                  <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      checked={p.enabled}
-                      aria-label={`${p.name} enabled`}
-                      onChange={(e) => m.setProviderEnabled.mutate({ id: p.id, enabled: e.target.checked })}
-                    />
-                    {p.enabled ? "On" : "Off"}
-                  </label>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </DataTable>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input type="checkbox" checked={data.refresh_on_start} onChange={(e) => m.setRefreshOnStart.mutate(e.target.checked)} />
-          Refresh prices when the app starts, if the last refresh is older than a day
-        </label>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-          A disabled provider makes no network requests; its stored data is still used. Stock and ETF providers are asked only for the assets you
-          assign to them on the Assets screen. Last refresh: {when(data.last_refresh_at)}.
-        </span>
-        {data.last_report && <Report report={data.last_report} />}
+      <Card title="Price providers" label="Price providers">
+        <p style={{ margin: 0 }}>
+          Price providers, API keys, refresh on start and the inflation index moved to{" "}
+          <Link to="/market-data?tab=providers">Market data › Providers</Link>.
+        </p>
       </Card>
-      <PriceHistory />
+      <DangerZone />
     </>
+  );
+}
+
+const SCOPES: { value: ResetScopeName; label: string; clears: string; keeps: string }[] = [
+  {
+    value: "portfolio",
+    label: "Portfolio data",
+    clears: "Accounts, assets, imports, activities, balance checks, manual and edited values, and prices stored in this database.",
+    keeps: "Settings, API keys, saved column mappings and the downloaded market history.",
+  },
+  {
+    value: "everything",
+    label: "Everything",
+    clears: "All of the above, settings and API keys (back to defaults), and the shared market history, which is downloaded again on the next refresh.",
+    keeps: "Saved column mappings.",
+  },
+];
+
+function DangerZone() {
+  const [scope, setScope] = useState<ResetScopeName>("portfolio");
+  const [typed, setTyped] = useState("");
+  const { data: preview } = useResetPreview(scope);
+  const reset = useResetData();
+  const n = (v: number | bigint) => Number(v).toLocaleString("en-US");
+  return (
+    <Card title="Danger zone" label="Reset data">
+      <p style={{ margin: 0, fontSize: 13 }}>
+        Reset data to start over. A backup copy is written next to each file before anything is cleared.
+      </p>
+      <fieldset style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 10 }}>
+        <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>What to reset</legend>
+        {SCOPES.map((o) => (
+          <label key={o.value} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 8px", fontSize: 13 }}>
+            <input
+              type="radio"
+              name="reset-scope"
+              value={o.value}
+              checked={scope === o.value}
+              onChange={() => {
+                setScope(o.value);
+                reset.reset();
+              }}
+            />
+            <strong style={{ fontWeight: 600 }}>{o.label}</strong>
+            <span />
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              Clears: {o.clears} Keeps: {o.keeps}
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {preview && (
+        <p style={{ margin: 0, fontSize: 13 }} data-testid="reset-preview">
+          This clears {n(preview.accounts)} accounts, {n(preview.activities)} activities, {n(preview.imports)} imports and {n(preview.assets)} assets
+          {preview.cache_values !== null && <>, and {n(preview.cache_values)} cached prices, rates and index values</>}.
+          {preview.cache_values !== null && (
+            <span style={{ display: "block", color: "var(--warn-strong)" }}>
+              Other Mizan databases on this computer share the market history{preview.cache_path ? ` (${preview.cache_path})` : ""}; they download it again on
+              their next refresh.
+            </span>
+          )}
+        </p>
+      )}
+      <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, flexWrap: "wrap" }}>
+        Type RESET to confirm
+        <input
+          aria-label="Type RESET to confirm"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          autoComplete="off"
+          style={{ font: "inherit", padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border-strong)", width: 120 }}
+        />
+        <Button
+          variant="primary"
+          disabled={typed !== "RESET" || reset.isPending}
+          onClick={() => reset.mutate({ scope, confirm: typed }, { onSuccess: () => setTyped("") })}
+          style={{ background: "var(--loss)", borderColor: "var(--loss)" }}
+        >
+          Reset {scope === "portfolio" ? "portfolio data" : "everything"}
+        </Button>
+      </label>
+      {reset.error && (
+        <p role="alert" style={{ margin: 0, fontSize: 12, color: "var(--loss)" }}>
+          {errorMessage(reset.error)}
+        </p>
+      )}
+      {reset.data && (
+        <p role="status" style={{ margin: 0, fontSize: 13 }} data-testid="reset-done">
+          Reset complete.{" "}
+          {reset.data.backups.length > 0 ? (
+            <>
+              Backups:{" "}
+              {reset.data.backups.map((b) => (
+                <code key={b} style={{ display: "block" }}>
+                  {b}
+                </code>
+              ))}
+            </>
+          ) : (
+            "No backup was needed."
+          )}
+        </p>
+      )}
+    </Card>
   );
 }

@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use mizan_core::portfolio::{self, AttentionItem, Contributions, Holdings, Overview};
+use mizan_core::portfolio::{self, AccountScope, AttentionItem, Contributions, Holdings, Overview};
 use mizan_core::Decision;
 use mizan_import::Date;
 use mizan_storage::AccountId;
@@ -135,7 +135,12 @@ pub fn import_create_asset(state: &AppState, key: String) -> Result<ImportView, 
 }
 
 pub fn import_commit(state: &AppState) -> Result<CommitView, AppError> {
-    let result = with_session(state, |s, store| s.commit(store))?;
+    let result = with_session(state, |s, store| {
+        let view = s.commit(store)?;
+        // New assets in accounts with a price provider get their source now.
+        mizan_core::assets::apply_account_sources(store)?;
+        Ok(view)
+    })?;
     *state.session.lock().map_err(store_err)? = None;
     crate::market::bump_generation(state);
     Ok(result)
@@ -181,16 +186,58 @@ pub fn pending_decisions(state: &AppState) -> Result<usize, AppError> {
         .unwrap_or(0))
 }
 
+/// The price book for valuation: the user database, series edits and the
+/// history cache, in one order of sources.
+pub(crate) fn price_book(
+    state: &AppState,
+    store: &mizan_storage::Store,
+) -> Result<mizan_core::returns::PriceBook, AppError> {
+    crate::market::with_history(state, |cache| {
+        Ok(mizan_core::returns::PriceBook::load(
+            store,
+            cache.ok().map(|c| &*c),
+        )?)
+    })
+}
+
 pub fn holdings(state: &AppState, today: Date) -> Result<Holdings, AppError> {
+    holdings_scoped(state, today, AccountScope::All)
+}
+
+/// Holdings of the accounts in `scope`.
+pub fn holdings_scoped(
+    state: &AppState,
+    today: Date,
+    scope: AccountScope,
+) -> Result<Holdings, AppError> {
     let store = state.store.lock().map_err(store_err)?;
-    Ok(portfolio::holdings(&store, today)?)
+    let book = price_book(state, &store)?;
+    let market = mizan_core::valuation::BookMarket {
+        store: &store,
+        book: &book,
+    };
+    Ok(portfolio::holdings_scoped(&store, &market, today, scope)?)
 }
 
 /// Overview plus the open review's pending decisions, which only the app knows about.
 pub fn overview(state: &AppState, today: Date) -> Result<Overview, AppError> {
+    overview_scoped(state, today, AccountScope::All)
+}
+
+/// Overview of the accounts in `scope`.
+pub fn overview_scoped(
+    state: &AppState,
+    today: Date,
+    scope: AccountScope,
+) -> Result<Overview, AppError> {
     let mut o = {
         let store = state.store.lock().map_err(store_err)?;
-        portfolio::overview(&store, today)?
+        let book = price_book(state, &store)?;
+        let market = mizan_core::valuation::BookMarket {
+            store: &store,
+            book: &book,
+        };
+        portfolio::overview_scoped(&store, &market, today, scope)?
     };
     let pending = pending_decisions(state)?;
     if pending > 0 {
@@ -205,8 +252,17 @@ pub fn overview(state: &AppState, today: Date) -> Result<Overview, AppError> {
 }
 
 pub fn contributions(state: &AppState, today: Date) -> Result<Contributions, AppError> {
+    contributions_scoped(state, today, AccountScope::All)
+}
+
+/// Net contributions of the accounts in `scope`.
+pub fn contributions_scoped(
+    state: &AppState,
+    today: Date,
+    scope: AccountScope,
+) -> Result<Contributions, AppError> {
     let store = state.store.lock().map_err(store_err)?;
-    Ok(portfolio::contributions(&store, today)?)
+    Ok(portfolio::contributions_scoped(&store, today, scope)?)
 }
 
 pub fn accounts(state: &AppState) -> Result<Vec<AccountView>, AppError> {
@@ -309,18 +365,30 @@ pub async fn cmd_pending_decisions(app: AppHandle) -> Result<usize, AppError> {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn cmd_holdings(app: AppHandle) -> Result<Holdings, AppError> {
-    blocking(app, |s| holdings(s, today())).await
+pub async fn cmd_holdings(app: AppHandle, account_id: Option<i64>) -> Result<Holdings, AppError> {
+    blocking(app, move |s| {
+        holdings_scoped(s, today(), AccountScope::from_option(account_id))
+    })
+    .await
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn cmd_overview(app: AppHandle) -> Result<Overview, AppError> {
-    blocking(app, |s| overview(s, today())).await
+pub async fn cmd_overview(app: AppHandle, account_id: Option<i64>) -> Result<Overview, AppError> {
+    blocking(app, move |s| {
+        overview_scoped(s, today(), AccountScope::from_option(account_id))
+    })
+    .await
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn cmd_contributions(app: AppHandle) -> Result<Contributions, AppError> {
-    blocking(app, |s| contributions(s, today())).await
+pub async fn cmd_contributions(
+    app: AppHandle,
+    account_id: Option<i64>,
+) -> Result<Contributions, AppError> {
+    blocking(app, move |s| {
+        contributions_scoped(s, today(), AccountScope::from_option(account_id))
+    })
+    .await
 }
 
 #[tauri::command(rename_all = "snake_case")]

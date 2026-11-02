@@ -41,8 +41,17 @@ fn committed_desktop_bindings_match_generated() {
     crate::market::SettingsView::export_all(&cfg).unwrap();
     crate::market::ProviderView::export_all(&cfg).unwrap();
     crate::returns::PerformanceView::export_all(&cfg).unwrap();
+    crate::view::ViewState::export_all(&cfg).unwrap();
+    crate::inbox::InboxView::export_all(&cfg).unwrap();
+    crate::adapters::AdaptersList::export_all(&cfg).unwrap();
     crate::returns::BenchmarkOption::export_all(&cfg).unwrap();
     crate::tax::TaxExport::export_all(&cfg).unwrap();
+    crate::reset::ResetPreview::export_all(&cfg).unwrap();
+    crate::accounts::MergePreview::export_all(&cfg).unwrap();
+    crate::accounts::PriceSourceOutcome::export_all(&cfg).unwrap();
+    crate::reset::ResetOutcome::export_all(&cfg).unwrap();
+    crate::activity::ActivityOptions::export_all(&cfg).unwrap();
+    crate::activity::SaveOutcome::export_all(&cfg).unwrap();
     mizan_core::assets::AssetView::export_all(&cfg).unwrap();
     mizan_market::RefreshReport::export_all(&cfg).unwrap();
     mizan_market::backfill::BackfillProgress::export_all(&cfg).unwrap();

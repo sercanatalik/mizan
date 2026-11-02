@@ -18,6 +18,7 @@ const asset = (a: Partial<AssetView> & Pick<AssetView, "asset_id" | "instrument_
   holders: 1,
   merged_into: null,
   manual_prices: [],
+  benchmark: false,
   ...a,
 });
 
@@ -75,6 +76,8 @@ beforeEach(() => {
       cmd_delete_manual_price: undefined,
       cmd_merge_assets: 9,
       cmd_undo_merge: undefined,
+      cmd_set_benchmark_candidate: undefined,
+      cmd_add_benchmark_instrument: 12,
     }) as typeof invoke,
   );
 });
@@ -190,4 +193,22 @@ test("accepts a Yahoo suggestion", async () => {
   expect(apple).toHaveTextContent("Suggested: Yahoo: AAPL");
   await userEvent.click(within(apple).getByRole("button", { name: "Accept" }));
   expect(invoke).toHaveBeenCalledWith("cmd_accept_suggestion", { asset_id: 4 });
+});
+
+test("mark an asset as a benchmark", async () => {
+  renderApp("/assets");
+  const toggle = await screen.findByRole("switch", { name: "Use AFT as a benchmark" });
+  expect(toggle).not.toBeChecked();
+  await userEvent.click(toggle);
+  expect(invoke).toHaveBeenCalledWith("cmd_set_benchmark_candidate", { asset_id: 1, on: true });
+});
+
+test("add a benchmark you do not hold", async () => {
+  renderApp("/assets");
+  const card = await screen.findByRole("region", { name: "Benchmarks" });
+  await userEvent.type(within(card).getByRole("textbox", { name: "Symbol" }), "SPY");
+  await userEvent.type(within(card).getByRole("textbox", { name: "Name" }), "S&P 500");
+  await userEvent.click(within(card).getByRole("button", { name: "Add benchmark" }));
+  expect(invoke).toHaveBeenCalledWith("cmd_add_benchmark_instrument", { kind: "yahoo", symbol: "SPY", name: "S&P 500" });
+  expect(await within(card).findByText("Added; its price history is downloading")).toBeInTheDocument();
 });

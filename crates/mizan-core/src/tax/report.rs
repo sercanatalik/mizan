@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use mizan_import::Date;
-use mizan_storage::inflation::{YearMonth, PPI_TR};
+use mizan_storage::inflation::PPI_TR;
 use mizan_storage::{
     AccountId, HistoryCache, PriceSourceKind, StorageError, Store, StoredActivity,
 };
@@ -123,14 +123,8 @@ impl TaxInputs {
             }
             info.tefas |= tefas.contains(&a.id);
         }
-        let mut index = MonthlyIndex::new();
-        if let Some(c) = cache {
-            for v in c.inflation_index(PPI_TR.source, PPI_TR.id)? {
-                if let (Some(m), Ok(x)) = (YearMonth::parse(&v.month), v.value.parse::<Decimal>()) {
-                    index.insert(m, x);
-                }
-            }
-        }
+        let index: MonthlyIndex =
+            crate::returns::inflation::monthly_values(store, cache, PPI_TR.source, PPI_TR.id)?;
         Ok(TaxInputs {
             accounts,
             activities,

@@ -6,9 +6,9 @@ function cx(...names: (string | false | undefined)[]): string {
   return names.filter(Boolean).join(" ");
 }
 
-export function Card(props: { title?: ReactNode; aside?: ReactNode; label?: string; children: ReactNode }) {
+export function Card(props: { title?: ReactNode; aside?: ReactNode; label?: string; id?: string; children: ReactNode }) {
   return (
-    <section className={s.card} aria-label={props.label}>
+    <section className={s.card} aria-label={props.label} id={props.id}>
       {(props.title || props.aside) && (
         <div className={s.cardHeader}>
           {props.title && <h2 className={s.cardTitle}>{props.title}</h2>}
@@ -96,3 +96,6 @@ export function Button({
   );
 }
 export { LineChart, type ChartSeries, type LineChartProps } from "./LineChart";
+export { StackedAreaChart, type StackedAreaChartProps, type StackedSeries } from "./StackedAreaChart";
+export { Donut, type DonutSlice } from "./Donut";
+export { CATEGORICAL, slotColor } from "./palette";

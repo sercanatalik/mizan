@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -25,208 +25,67 @@ function serve(extra: Record<string, unknown> = {}) {
   );
 }
 
-test("lists built-in providers with switches and toggles one off", async () => {
-  serve();
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("provider-row");
-  expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["TEFAS", "TCMB", "Yahoo Finance", "Twelve Data", "Eurostat", "BLS", "ONS", "EVDS"]);
-  expect(rows[2]).toHaveTextContent("unofficial source");
-  expect(rows[3]).toHaveTextContent("the free plan covers US listings");
-  expect(rows[0]).toHaveTextContent("Turkish investment and pension fund prices");
-  const tefas = screen.getByRole("switch", { name: "TEFAS enabled" });
-  expect(tefas).toBeChecked();
-  await userEvent.click(tefas);
-  expect(invoke).toHaveBeenCalledWith("cmd_set_provider_enabled", { id: "tefas", enabled: false });
-});
-
-test("changes base currency and refresh-on-start", async () => {
+test("changes base currency", async () => {
   serve();
   renderApp("/settings");
   await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Base currency" }), "EUR");
   expect(invoke).toHaveBeenCalledWith("cmd_set_base_currency", { currency: "EUR" });
-  await userEvent.click(screen.getByRole("checkbox", { name: /Refresh prices when the app starts/ }));
-  expect(invoke).toHaveBeenCalledWith("cmd_set_refresh_on_start", { enabled: false });
 });
 
-test("shows the last report with a disabled provider", async () => {
-  serve({
-    cmd_settings: {
-      ...EMPTY.cmd_settings,
-      last_refresh_at: "2026-11-01T10:00:05Z",
-      providers: [
-        { ...EMPTY.cmd_settings.providers[0], enabled: false },
-        { ...EMPTY.cmd_settings.providers[1], last_success: "2026-11-01T10:00:05Z" },
-      ],
-      last_report: {
-        started_at: "2026-11-01T10:00:00Z",
-        finished_at: "2026-11-01T10:00:05Z",
-        sources: [
-          { id: "tefas", name: "TEFAS", status: "disabled", updated: 0, messages: [] },
-          { id: "tcmb", name: "TCMB", status: "ok", updated: 22, messages: ["rates dated 2026-10-30"] },
-        ],
-      },
-    },
-  });
-  renderApp("/settings");
-  const report = await screen.findByRole("list", { name: "Last refresh" });
-  expect(report).toHaveTextContent("TEFAS");
-  expect(report).toHaveTextContent("Disabled");
-  expect(report).toHaveTextContent("22 updated");
-  expect(screen.getByRole("switch", { name: "TEFAS enabled" })).not.toBeChecked();
-});
-
-test("refresh button triggers a refresh", async () => {
-  serve({ cmd_refresh_prices: { started_at: "a", finished_at: "b", sources: [] } });
-  renderApp("/settings");
-  await userEvent.click(await screen.findByRole("button", { name: "Refresh prices" }));
-  expect(invoke).toHaveBeenCalledWith("cmd_refresh_prices");
-});
-
-function progress(tefas: Record<string, unknown>, tcmb: Record<string, unknown> = {}) {
-  const base = EMPTY.cmd_backfill_status;
-  return {
-    cmd_backfill_status: {
-      ...base,
-      sources: [
-        { ...base.sources[0], ...tefas },
-        { ...base.sources[1], ...tcmb },
-      ],
-    },
-  };
-}
-
-test("shows price history progress and the cache location", async () => {
-  serve(progress({ state: "running", done: 34, planned: 120 }, { state: "done" }));
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("history-row");
-  expect(rows[0]).toHaveTextContent("Downloading");
-  expect(rows[0]).toHaveTextContent("34 of 120 months");
-  expect(rows[1]).toHaveTextContent("Complete");
-  expect(screen.getByRole("region", { name: "Price history" })).toHaveTextContent("/Users/a/.mizan/market-history.sqlite");
-});
-
-test("shows waiting, failed, disabled and the five-year note", async () => {
-  serve(
-    progress(
-      { state: "failed", error: "TEFAS request failed: connection closed", note: "Fund prices older than five years are not available from TEFAS." },
-      { state: "waiting", planned: 12 },
-    ),
-  );
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("history-row");
-  expect(rows[0]).toHaveTextContent("Failed");
-  expect(rows[0]).toHaveTextContent("connection closed");
-  expect(rows[0]).toHaveTextContent("older than five years");
-  expect(rows[1]).toHaveTextContent("12 days missing · continues after the next refresh");
-});
-
-test("idle and disabled history states", async () => {
-  serve(progress({ state: "disabled" }, { state: "idle" }));
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("history-row");
-  expect(rows[0]).toHaveTextContent("Provider is off");
-  expect(rows[1]).toHaveTextContent("Only TRY is used");
-});
-
-test("saves and clears the Twelve Data key without ever showing it", async () => {
+test("providers are no longer in Settings; a link points to Market data › Providers", async () => {
   serve();
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("provider-row");
-  expect(within(rows[0]!).queryByLabelText(/API key/)).not.toBeInTheDocument();
-  const field = within(rows[3]!).getByLabelText("Twelve Data API key");
-  expect(field).toHaveAttribute("type", "password");
-  expect(rows[3]).toHaveTextContent("not saved");
-  await userEvent.type(field, " td-key-3f9a ");
-  await userEvent.click(within(rows[3]!).getByRole("button", { name: "Save key" }));
-  expect(invoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "twelvedata", key: "td-key-3f9a" });
+  const { router } = renderApp("/settings");
+  const card = await screen.findByRole("region", { name: "Price providers" });
+  expect(screen.queryAllByTestId("provider-row")).toHaveLength(0);
+  expect(screen.queryByRole("checkbox", { name: /Refresh prices when the app starts/ })).toBeNull();
+  await userEvent.click(within(card).getByRole("link", { name: "Market data › Providers" }));
+  await waitFor(() => expect(router.state.location.pathname).toBe("/market-data"));
+  expect(await screen.findAllByTestId("provider-row")).toHaveLength(8);
 });
 
-test("a saved key shows only its masked hint and can be cleared", async () => {
-  serve({
-    cmd_settings: {
-      ...EMPTY.cmd_settings,
-      providers: EMPTY.cmd_settings.providers.map((p) => (p.id === "twelvedata" ? { ...p, api_key_hint: "••••3f9a" } : p)),
-    },
+describe("reset data", () => {
+  const portfolio = { accounts: 4, activities: 424, imports: 3, assets: 9, cache_values: null, cache_path: null };
+  const everything = { ...portfolio, cache_values: 52000, cache_path: "/Users/a/.mizan/market-history.sqlite" };
+
+  test("preview shows what each scope clears, with the shared-cache warning for everything", async () => {
+    serve({ cmd_reset_preview: (a: unknown) => ((a as { scope: string }).scope === "everything" ? everything : portfolio) });
+    renderApp("/settings");
+    const card = await screen.findByRole("region", { name: "Reset data" });
+    expect(await within(card).findByTestId("reset-preview")).toHaveTextContent("4 accounts, 424 activities, 3 imports and 9 assets");
+    expect(within(card).getByTestId("reset-preview")).not.toHaveTextContent("Other Mizan databases");
+    await userEvent.click(within(card).getByRole("radio", { name: /Everything/ }));
+    await waitFor(() => expect(within(card).getByTestId("reset-preview")).toHaveTextContent("52,000 cached prices"));
+    expect(within(card).getByTestId("reset-preview")).toHaveTextContent("Other Mizan databases");
   });
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("provider-row");
-  expect(within(rows[3]!).getByTestId("api-key-hint")).toHaveTextContent("••••3f9a");
-  await userEvent.click(within(rows[3]!).getByRole("button", { name: "Clear key" }));
-  expect(invoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "twelvedata", key: null });
-});
 
-test("EVDS asks for a key and shows it masked once saved", async () => {
-  serve();
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("provider-row");
-  const evds = rows[7]!;
-  expect(evds).toHaveTextContent("EVDS");
-  expect(evds).toHaveTextContent("Yİ-ÜFE");
-  await userEvent.type(within(evds).getByPlaceholderText("Paste your key"), "evds-key-41d9");
-  await userEvent.click(within(evds).getByRole("button", { name: "Save key" }));
-  expect(invoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "evds", key: "evds-key-41d9" });
-});
-
-test("listed history counts years and waits for an API key", async () => {
-  const base = EMPTY.cmd_backfill_status;
-  serve({
-    cmd_backfill_status: {
-      ...base,
-      sources: [
-        base.sources[0],
-        base.sources[1],
-        { ...base.sources[2], state: "running", done: 6, planned: 14 },
-        { ...base.sources[3], state: "needs_key" },
-      ],
-    },
+  test("the reset runs only after typing RESET and shows the backups", async () => {
+    serve({
+      cmd_reset_preview: portfolio,
+      cmd_reset_data: { backups: ["/Users/a/Library/Application Support/mizan/mizan-backup-20261102-101500.db"] },
+    });
+    renderApp("/settings");
+    const card = await screen.findByRole("region", { name: "Reset data" });
+    const button = within(card).getByRole("button", { name: "Reset portfolio data" });
+    const field = within(card).getByRole("textbox", { name: "Type RESET to confirm" });
+    await userEvent.type(field, "reset");
+    expect(button).toBeDisabled();
+    await userEvent.clear(field);
+    await userEvent.type(field, "RESET");
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("cmd_reset_data", { scope: "portfolio", confirm: "RESET" }));
+    expect(await within(card).findByTestId("reset-done")).toHaveTextContent("mizan-backup-20261102-101500.db");
   });
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("history-row");
-  expect(rows[2]).toHaveTextContent("Yahoo Finance");
-  expect(rows[2]).toHaveTextContent("6 of 14 years");
-  expect(rows[3]).toHaveTextContent("Waiting for an API key");
-  expect(rows[3]).toHaveTextContent("Save a Twelve Data API key above");
-});
 
-test("idle listed history explains why", async () => {
-  serve();
-  renderApp("/settings");
-  const rows = await screen.findAllByTestId("history-row");
-  expect(rows[2]).toHaveTextContent("no asset priced from Yahoo Finance has activities yet");
-});
-
-test("inflation index status: cached, provider off, unsupported currency", async () => {
-  serve({
-    cmd_settings: {
-      ...EMPTY.cmd_settings,
-      base_currency: "EUR",
-      inflation: { label: "Euro-area HICP (Eurostat)", through: "Sep 2026", last_checked: "2026-11-02T10:00:00Z", last_check_failed: false, note: null },
-    },
+  test("a failed reset shows the error", async () => {
+    serve({
+      cmd_reset_preview: portfolio,
+      cmd_reset_data: () => Promise.reject({ kind: "storage", message: "database error: disk full" }),
+    });
+    renderApp("/settings");
+    const card = await screen.findByRole("region", { name: "Reset data" });
+    await userEvent.type(within(card).getByRole("textbox", { name: "Type RESET to confirm" }), "RESET");
+    await userEvent.click(within(card).getByRole("button", { name: "Reset portfolio data" }));
+    expect(await within(card).findByRole("alert")).toHaveTextContent("disk full");
   });
-  const { unmount } = renderApp("/settings");
-  const status = await screen.findByTestId("inflation-status");
-  expect(status).toHaveTextContent("Euro-area HICP (Eurostat) · through Sep 2026");
-  expect(status).toHaveTextContent("Last checked 2026-11-02 10:00 UTC");
-  unmount();
-
-  serve({
-    cmd_settings: {
-      ...EMPTY.cmd_settings,
-      base_currency: "USD",
-      inflation: { label: "US CPI-U (BLS)", through: "Sep 2026", last_checked: null, last_check_failed: false, note: "US CPI-U is not refreshed because BLS is off; cached values are still used." },
-    },
-  });
-  const second = renderApp("/settings");
-  expect(await screen.findByTestId("inflation-status")).toHaveTextContent("US CPI-U is not refreshed because BLS is off; cached values are still used.");
-  second.unmount();
-
-  serve({
-    cmd_settings: {
-      ...EMPTY.cmd_settings,
-      base_currency: "CHF",
-      inflation: { label: null, through: null, last_checked: null, last_check_failed: false, note: "No inflation index for CHF; real returns are not available." },
-    },
-  });
-  renderApp("/settings");
-  expect(await screen.findByTestId("inflation-status")).toHaveTextContent("No inflation index for CHF; real returns are not available.");
 });

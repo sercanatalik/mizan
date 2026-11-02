@@ -68,6 +68,76 @@ impl Market for Store {
     }
 }
 
+/// Prices and rates through a [`crate::returns::PriceBook`]: the user
+/// database, series edits and the history cache in one order of sources.
+pub struct BookMarket<'a> {
+    pub store: &'a Store,
+    pub book: &'a crate::returns::PriceBook,
+}
+
+impl Market for BookMarket<'_> {
+    fn quote(&self, asset: AssetId, today: Date) -> Result<Option<Quote>, StorageError> {
+        let keys = self.store.key_map()?;
+        let canonical = self.store.canonical_asset(asset)?;
+        let Some(row) = self
+            .store
+            .list_assets()?
+            .into_iter()
+            .find(|a| a.id == canonical)
+        else {
+            return Ok(None);
+        };
+        let key = keys
+            .get(&row.instrument_key)
+            .cloned()
+            .unwrap_or(row.instrument_key);
+        let Some(p) = self.book.price_on(&key, today) else {
+            return Ok(None);
+        };
+        // Where the value came from: the user database's own row for that
+        // date, else an edit, else the history cache of the price source.
+        let stored = self
+            .store
+            .latest_price(canonical, &p.date.to_string())?
+            .filter(|r| r.date == p.date.to_string() && parse_dec(&r.value) == Some(p.value));
+        let source = match stored {
+            Some(r) => r.source,
+            None => {
+                let series = self
+                    .store
+                    .price_sources()?
+                    .get(&canonical)
+                    .and_then(crate::returns::pricebook::series_key);
+                let edited = match &series {
+                    Some(sk) => self
+                        .store
+                        .series_edits(mizan_storage::SeriesKind::Price, sk)?
+                        .iter()
+                        .any(|e| e.period == p.date.to_string() && !e.ignored),
+                    None => false,
+                };
+                if edited {
+                    "edited".into()
+                } else {
+                    series
+                        .and_then(|s| s.split_once(':').map(|(p, _)| p.to_string()))
+                        .unwrap_or_else(|| "history".into())
+                }
+            }
+        };
+        Ok(Some(Quote {
+            date: p.date,
+            value: p.value,
+            currency: p.currency.clone(),
+            source,
+        }))
+    }
+
+    fn try_per_unit(&self, currency: &Code, today: Date) -> Result<Option<Decimal>, StorageError> {
+        Ok(self.book.try_per_unit(currency, today))
+    }
+}
+
 /// The base currency setting, `TRY` when unset or invalid.
 pub fn base_currency(store: &Store) -> Result<Code, StorageError> {
     let s = store

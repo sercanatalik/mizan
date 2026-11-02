@@ -7,7 +7,7 @@
 use super::report::{GainRowView, IncomeRowView, TaxReport};
 use super::Country;
 
-fn field(s: &str) -> String {
+pub fn field(s: &str) -> String {
     if s.contains([',', '"', '\n', '\r']) {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
@@ -15,7 +15,8 @@ fn field(s: &str) -> String {
     }
 }
 
-fn line(cells: &[&str]) -> String {
+/// One RFC 4180 line, CRLF-terminated.
+pub fn line(cells: &[&str]) -> String {
     let mut l = cells.iter().map(|c| field(c)).collect::<Vec<_>>().join(",");
     l.push_str("\r\n");
     l

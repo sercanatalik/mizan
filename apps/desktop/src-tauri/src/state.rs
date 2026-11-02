@@ -38,8 +38,8 @@ pub struct AppState {
     pub cancel: AtomicBool,
     /// Bumped whenever data behind values and returns changes.
     pub generation: AtomicU64,
-    /// Returns and value history for the last generation computed.
-    pub returns_memo: Mutex<Option<crate::returns::Computed>>,
+    /// Returns and value history per account scope, for the last generation computed.
+    pub returns_memo: Mutex<Vec<crate::returns::Computed>>,
 }
 
 impl AppState {
@@ -57,7 +57,7 @@ impl AppState {
             backfill: Mutex::new(None),
             cancel: AtomicBool::new(false),
             generation: AtomicU64::new(0),
-            returns_memo: Mutex::new(None),
+            returns_memo: Mutex::new(Vec::new()),
         }
     }
 
@@ -112,7 +112,7 @@ mod tests {
         {
             let mut store = open_store(&dir).unwrap();
             assert!(db_path(&dir).exists());
-            assert_eq!(store.schema_version().unwrap(), 4);
+            assert_eq!(store.schema_version().unwrap(), 9);
             store.create_account("IBKR", "U1").unwrap();
         }
         let store = open_store(&dir).unwrap();

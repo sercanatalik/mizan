@@ -1,27 +1,14 @@
-import { useState } from "react";
+import { Link } from "react-router";
 import { PageHeader } from "../app/Layout";
+import { useScopeName, useView } from "../app/view";
 import type { Figure } from "../bridge/generated/Figure";
-import type { Period } from "../bridge/generated/Period";
 import type { PerformanceView } from "../bridge/generated/PerformanceView";
 import { useContributions, usePerformance, useSetBenchmark } from "../bridge/queries";
-import { Card, DataTable, EmptyState, LineChart, Segmented } from "../ui";
+import { Card, DataTable, EmptyState, LineChart } from "../ui";
 import { longDate } from "./format";
 import { NoData } from "./NoData";
 
-const PERIODS: { value: Period; label: string }[] = [
-  { value: "one_month", label: "1M" },
-  { value: "three_months", label: "3M" },
-  { value: "ytd", label: "YTD" },
-  { value: "last12_months", label: "1Y" },
-  { value: "since_start", label: "Since start" },
-];
-
 type Mode = "nominal" | "real";
-
-const MODES: { value: Mode; label: string }[] = [
-  { value: "nominal", label: "Nominal" },
-  { value: "real", label: "Real" },
-];
 
 const muted = { fontSize: 12, color: "var(--text-muted)" } as const;
 
@@ -62,21 +49,35 @@ function sinceLabel(from: string | null, clamped: boolean, to: string): string {
 function BenchmarkPicker({ view }: { view: PerformanceView }) {
   const set = useSetBenchmark();
   return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-      Benchmark
-      <select
-        value={view.benchmark_asset_id ?? ""}
-        onChange={(e) => set.mutate(e.target.value === "" ? null : Number(e.target.value))}
-        style={{ font: "inherit", padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border-strong)", maxWidth: 260 }}
-      >
-        <option value="">None</option>
-        {view.benchmark_options.map((o) => (
-          <option key={o.asset_id} value={o.asset_id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, width: "100%" }}>
+      <label style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13, minWidth: 0 }}>
+        Benchmark
+        <select
+          value={view.benchmark_asset_id ?? ""}
+          onChange={(e) => set.mutate(e.target.value === "" ? null : Number(e.target.value))}
+          style={{
+            font: "inherit",
+            padding: "4px 8px",
+            borderRadius: 6,
+            border: "1px solid var(--border-strong)",
+            flex: "1 1 140px",
+            minWidth: 0,
+            maxWidth: "100%",
+            textOverflow: "ellipsis",
+          }}
+        >
+          <option value="">None</option>
+          {view.benchmark_options.map((o) => (
+            <option key={o.asset_id} value={o.asset_id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Link to="/assets" style={{ fontSize: 12 }}>
+        Choose benchmarks on Assets
+      </Link>
+    </div>
   );
 }
 
@@ -178,17 +179,21 @@ function Returns({ view, mode }: { view: PerformanceView; mode: Mode }) {
   );
 }
 
+const PERFORMANCE_VIEW = { scope: true, period: true, currency: true, real: true } as const;
+
 export function Performance() {
-  const { data } = useContributions();
-  const [period, setPeriod] = useState<Period>("ytd");
-  const [mode, setMode] = useState<Mode>("nominal");
-  const { data: perf } = usePerformance(period);
-  if (!data) return <PageHeader title="Performance" />;
+  const { view } = useView();
+  const scopeName = useScopeName();
+  const { period, account_id: accountId } = view;
+  const mode: Mode = view.real ? "real" : "nominal";
+  const { data } = useContributions(accountId);
+  const { data: perf } = usePerformance(period, accountId);
+  if (!data) return <PageHeader title="Performance" view={PERFORMANCE_VIEW} />;
   const current = data.periods.find((p) => p.period === period);
   if ((data.periods[0]?.accounts.length ?? 0) === 0 || !current) {
     return (
       <>
-        <PageHeader title="Performance" />
+        <PageHeader title="Performance" view={PERFORMANCE_VIEW} />
         <NoData what="contributions" />
       </>
     );
@@ -198,13 +203,8 @@ export function Performance() {
     <>
       <PageHeader
         title="Performance"
-        subtitle={`All accounts · ${range}`}
-        actions={
-          <>
-            <Segmented label="Returns" value={mode} onChange={setMode} options={MODES} />
-            <Segmented label="Period" value={period} onChange={setPeriod} options={PERIODS} />
-          </>
-        }
+        subtitle={`${scopeName} · ${range}`}
+        view={PERFORMANCE_VIEW}
       />
       {perf && <Returns view={perf} mode={mode} />}
       <Card title="Net contributions" label="Net contributions" aside={<span style={muted}>Deposits minus withdrawals; internal transfers excluded</span>}>

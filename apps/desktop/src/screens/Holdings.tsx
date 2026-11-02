@@ -1,31 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { PageHeader } from "../app/Layout";
+import { TOGGLE_INSPECTOR } from "../app/useMenuEvents";
+import { useScopeName, useView } from "../app/view";
 import type { CostView } from "../bridge/generated/CostView";
 import type { Holdings as HoldingsData } from "../bridge/generated/Holdings";
 import type { Position } from "../bridge/generated/Position";
 import { useHoldings } from "../bridge/queries";
 import { Badge, Card, DataTable, Segmented } from "../ui";
-import { longDate } from "./format";
+import { CLASS_LABELS, longDate } from "./format";
 import { NoData } from "./NoData";
+import { PositionInspector } from "./PositionInspector";
 import { RefreshButton } from "./RefreshButton";
 
 type GroupBy = "account" | "class" | "currency";
 
-const CLASS_LABELS: Record<string, string> = {
-  equity: "Equities",
-  etf: "ETFs",
-  fund: "Funds",
-  bond: "Bonds",
-  option: "Options",
-  crypto: "Crypto",
-  commodity: "Commodities",
-  cash: "Cash",
-  other: "Other",
-};
 
 interface Row {
   key: string;
+  accountId: number;
   account: string;
   label: string;
   sub: string | null;
@@ -53,6 +46,7 @@ function rowsOf(data: HoldingsData): Row[] {
     for (const p of a.positions) {
       rows.push({
         key: `${a.account_id}-${p.instrument_key}`,
+        accountId: a.account_id,
         account: a.name,
         label: p.symbol ?? p.name ?? p.instrument_key,
         sub: p.symbol && p.name ? p.name : p.isin ?? null,
@@ -61,7 +55,7 @@ function rowsOf(data: HoldingsData): Row[] {
       });
     }
     for (const c of a.cash) {
-      rows.push({ key: `${a.account_id}-cash-${c.currency}`, account: a.name, label: `Cash · ${c.currency}`, sub: null, quantity: c.amount, cashCurrency: c.currency });
+      rows.push({ key: `${a.account_id}-cash-${c.currency}`, accountId: a.account_id, account: a.name, label: `Cash · ${c.currency}`, sub: null, quantity: c.amount, cashCurrency: c.currency });
     }
   }
   return rows;
@@ -73,8 +67,29 @@ function groupName(r: Row, by: GroupBy): string {
   return r.cashCurrency ?? r.position?.currency ?? "Unknown currency";
 }
 
+const HOLDINGS_VIEW = { scope: true, currency: true } as const;
+
 export function Holdings() {
-  const { data } = useHoldings();
+  const { view } = useView();
+  const scopeName = useScopeName();
+  const { data } = useHoldings(view.account_id);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  useEffect(() => {
+    const toggle = () => setInspectorOpen((o) => !o);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        toggle();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener(TOGGLE_INSPECTOR, toggle);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(TOGGLE_INSPECTOR, toggle);
+    };
+  }, []);
   const [by, setBy] = useState<GroupBy>("account");
   const rows = useMemo(() => (data ? rowsOf(data) : []), [data]);
   const groups = useMemo(() => {
@@ -83,11 +98,12 @@ export function Holdings() {
     return [...m.entries()];
   }, [rows, by]);
 
-  if (!data) return <PageHeader title="Holdings" />;
+  const current = rows.find((r) => r.key === selected && r.position) ?? null;
+  if (!data) return <PageHeader title="Holdings" view={HOLDINGS_VIEW} />;
   if (rows.length === 0) {
     return (
       <>
-        <PageHeader title="Holdings" />
+        <PageHeader title="Holdings" view={HOLDINGS_VIEW} />
         <NoData what="your positions" />
       </>
     );
@@ -97,7 +113,8 @@ export function Holdings() {
     <>
       <PageHeader
         title="Holdings"
-        subtitle={`${positions} position${positions === 1 ? "" : "s"} in ${data.accounts.length} account${data.accounts.length === 1 ? "" : "s"}`}
+        view={HOLDINGS_VIEW}
+        subtitle={`${scopeName} · ${positions} position${positions === 1 ? "" : "s"} in ${data.accounts.length} account${data.accounts.length === 1 ? "" : "s"}`}
         actions={
           <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <Segmented
@@ -119,6 +136,8 @@ export function Holdings() {
           ? `Values and weights in ${data.base_currency}. Costs and gains are provisional, in the currency paid.`
           : "Values appear once prices are refreshed. Costs are provisional averages in the currency paid."}
       </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, alignItems: "flex-start" }}>
+      <div style={{ flex: "3 1 640px", minWidth: 0 }}>
       <Card label="Positions">
         <DataTable label="Positions" minWidth={1180}>
           <thead>
@@ -144,10 +163,25 @@ export function Holdings() {
               {items.map((r) => {
                 const p = r.position;
                 const note = p ? costNote(p.cost) : null;
+                const isSelected = inspectorOpen && current?.key === r.key;
                 return (
-                  <tr key={r.key} data-testid="holding-row">
+                  <tr key={r.key} data-testid="holding-row" aria-selected={p ? isSelected : undefined} style={isSelected ? { background: "var(--accent-soft)", boxShadow: "inset 3px 0 0 var(--accent)" } : undefined}>
                     <td>
-                      <div style={{ fontWeight: 500 }}>{r.label}</div>
+                      {p ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelected(r.key);
+                            setInspectorOpen(true);
+                          }}
+                          aria-label={`Inspect ${r.label} in ${r.account}`}
+                          style={{ border: 0, padding: 0, background: "none", font: "inherit", fontWeight: 500, color: "inherit", cursor: "pointer", textAlign: "left" }}
+                        >
+                          {r.label}
+                        </button>
+                      ) : (
+                        <div style={{ fontWeight: 500 }}>{r.label}</div>
+                      )}
                       {r.sub && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{r.sub}</div>}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
                         {p?.cost.unknown_units && <Badge>{p.cost.unknown_units} units with unknown cost basis</Badge>}
@@ -197,6 +231,13 @@ export function Holdings() {
           ))}
         </DataTable>
       </Card>
+      </div>
+      {inspectorOpen && current?.position && (
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <PositionInspector p={current.position} accountId={current.accountId} accountName={current.account} onClose={() => setInspectorOpen(false)} />
+        </div>
+      )}
+      </div>
     </>
   );
 }

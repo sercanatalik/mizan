@@ -24,7 +24,7 @@ All eight are enabled by default; the inflation providers are described under
  Yahoo Finance and Twelve Data are only asked
 for the symbols you assign to them on the Assets screen, so they make no
 requests until you do; Twelve Data also waits until you save a key. In
-**Settings › Market data providers**, each has an On/Off switch. A disabled provider makes no network requests, and the prices or
+**Market data › Providers**, each has an On/Off switch. A disabled provider makes no network requests, and the prices or
 rates it stored earlier are still used for valuation. Requests identify
 themselves as `Mizan/<version>`; Mizan never imitates a browser.
 
@@ -53,17 +53,18 @@ background:
 
 - **Fund prices** for each asset priced from TEFAS, from its first activity,
   one fund and one month per request, at least 10 seconds apart. The benchmark
-  fund (Performance) is downloaded from the portfolio's first activity, even if
-  you don't hold it. History is planned from your activities, so nothing is
-  downloaded until something is imported; a new benchmark is picked up at the
-  next refresh.
+  fund (Performance) and every asset marked as a benchmark on Assets are
+  downloaded from the first activity of the account that holds them, or from
+  the portfolio's first activity when you don't hold them.
+  History is planned from your activities, so nothing is downloaded until
+  something is imported; marking a benchmark starts its download at once.
 - **Stock and ETF closes** for each asset priced from Yahoo Finance or Twelve
-  Data, from its first activity (a listed benchmark from the portfolio's first
-  activity). One request per symbol covers every missing year through today:
+  Data, from its first activity (benchmarks from the first activity of the
+  account holding them, or the portfolio's first activity when not held). One request per symbol covers every missing year through today:
   Yahoo requests at least 2 seconds apart, Twelve Data at least 8 (its free
   plan allows 8 a minute; it serves at most 5,000 days per request, so a span
   over 19 years takes more than one). There is no five-year limit. An unknown
-  symbol is noted in Settings and skipped.
+  symbol is noted on the Providers tab and skipped.
 - **Exchange rates** from TCMB's daily archive
   (`https://www.tcmb.gov.tr/kurlar/YYYYMM/DDMMYYYY.xml`), one business day per
   request, one a second, from the first activity in a currency other than TRY
@@ -74,12 +75,12 @@ background:
 - **Resumable:** each month or day is saved as soon as it arrives. Quitting the
   app stops the backfill; the next refresh continues where it stopped.
 - **Failures** stop that provider for the run without touching cached data;
-  the other provider continues. The error shows in Settings.
+  the other provider continues. The error shows on the Providers tab.
 - **Five-year limit:** TEFAS serves no prices older than five years. Returns
   value older days at trade prices from your own activities, marked as
   estimates.
 
-**Settings › Price history** shows each provider's state (downloading with
+**Market data › Providers › Price history** shows each provider's state (downloading with
 "34 of 120 months" or "6 of 14 years", complete, waiting for the next refresh,
 waiting for an API key, failed with the reason, off, or not needed) and the
 cache location. A disabled provider
@@ -94,13 +95,13 @@ is downloaded again when needed. Your database stays in the app data folder
 
 ## Refreshing
 
-- **Refresh prices** (on Overview, Holdings, Assets and Settings) runs one refresh.
+- **Refresh prices** (on Overview, Holdings, Assets and Market data › Providers) runs one refresh.
 - **On start:** with "Refresh prices when the app starts, if the last refresh is
   older than a day" checked (the default), a refresh runs in the background
   after the window opens when the last successful refresh is more than 24 hours
   old. Uncheck it to keep the app fully offline.
 - **Failures:** a failing provider never stops the other one, and never deletes
-  or changes stored data. Settings shows the last refresh report per provider:
+  or changes stored data. The Providers tab shows the last refresh report per provider:
   OK, Failed (with the reason), Disabled, Nothing to fetch, or Needs an API key.
   An unknown stock symbol is reported for that asset only ("NOSUCHXYZ: symbol
   not found"). A rejected key or a provider's request limit stops that
@@ -120,14 +121,15 @@ from the price-source menu, then **Save source**:
 - **Manual:** only the prices you enter.
 - **None** (the default): the asset shows "no price".
 
-The provider sources need a code or symbol. If a provider is off in Settings,
+The provider sources need a code or symbol. If a provider is off on the Providers tab,
 or Twelve Data has no key, the asset's source says so.
 
 Suggestions appear with an **Accept** button, and nothing changes until you
 accept:
 
 - **TEFAS** when an asset looks like a TEFAS fund (class `fund` or a TRY
-  currency, with a three-letter upper-case symbol): "TEFAS: AFT".
+  currency, with a three-character upper-case code of letters and digits, such as
+  AFT or AH1): "TEFAS: AFT".
 - **Yahoo** when an imported symbol has a known exchange code (MIC), or no
   exchange code and a USD currency: `VWCE` on `XETR` gives "Yahoo: VWCE.DE",
   `BRK.B` on `XNYS` gives "Yahoo: BRK-B". Suffixes are known for the US
@@ -161,9 +163,9 @@ GBP, ILA to ILS, ZAc to ZAR, divided by 100.
 trading hours Yahoo's newest bar is the live price; the next refresh within 7
 days replaces it with the close.
 
-**The Twelve Data key.** Save it in **Settings › Market data providers**. It is
+**The Twelve Data key.** Save it in **Market data › Providers**. It is
 stored in your database only and sent in the `Authorization` header, never in a
-URL. Settings shows only its last four characters, and it never appears in
+URL. The Providers tab shows only its last four characters, and it never appears in
 refresh reports or the history cache. **Clear key** removes it.
 
 **Yahoo is unofficial.** The chart endpoint is not a documented API and may
@@ -204,7 +206,7 @@ Other base currencies have no index, and real returns say so.
 is TÜİK's TÜFE, which is only published through keyed or less machine-readable
 channels. HICP Türkiye is the harmonised index TÜİK compiles for Eurostat from
 the same price collection; it follows TÜFE closely but is not identical.
-Settings and Performance always label it "HICP Türkiye".
+The Providers tab and Performance always label it "HICP Türkiye".
 
 How monthly values become a daily index is described in
 [returns.md](returns.md#real-returns).
@@ -215,14 +217,14 @@ Turkish tax reports raise the cost of a foreign security by the domestic
 producer price index (Yİ-ÜFE) when it rose 10% or more between the month
 before the purchase and the month before the sale (see [tax.md](tax.md)).
 The index comes from the TCMB's EVDS service, which needs a free API key
-(register at `evds3.tcmb.gov.tr`). Enter it in **Settings › Market data
-providers › EVDS**.
+(register at `evds3.tcmb.gov.tr`). Enter it in **Market data › Providers ›
+EVDS**.
 
 - **No key, no request.** The refresh lists EVDS as "needs an API key", and
   Turkish reports show unindexed costs with a note on each row.
 - **The key stays in the user database.** It is sent only in the `key`
   request header, never in a URL, and is never written to the history cache,
-  logs or refresh reports. Settings shows it masked.
+  logs or refresh reports. The Providers tab shows it masked.
 - **Caching and timing** follow the inflation indices: from the month before
   your first activity, cached by month in the history cache, re-reading the
   last three months, at most once a day.
@@ -248,7 +250,7 @@ activities are not rewritten, so **Undo merge** restores both assets exactly.
   such as 100 JPY are divided out), dated by TCMB's own date. Weekends and
   holidays use the latest earlier rates. Conversions between two non-TRY
   currencies go through TRY.
-- **Base currency:** chosen in **Settings › Valuation** (default TRY). Changing it
+- **Base currency:** chosen in **Settings › Valuation** or the view bar (default TRY). Changing it
   recomputes all totals from stored rates without a refresh.
 - **Unrealized gain:** value minus the provisional average cost, only when the
   cost is known and in the price currency. Otherwise it reads "not available"

@@ -1,13 +1,22 @@
 //! Mizan desktop app: Tauri host for the import pipeline and read models.
 
+pub mod accounts;
+pub mod activity;
+pub mod adapters;
 pub mod commands;
+pub mod exports;
+pub mod inbox;
+pub mod income;
 pub mod mapper;
 pub mod market;
+pub mod market_data;
 pub mod menu;
+pub mod reset;
 pub mod returns;
 pub mod session;
 pub mod state;
 pub mod tax;
+pub mod view;
 
 #[cfg(test)]
 mod bindings;
@@ -19,6 +28,21 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            view::cmd_view_get,
+            exports::cmd_backup_database,
+            exports::cmd_export_activities_csv,
+            exports::cmd_export_holdings_csv,
+            adapters::cmd_adapters_list,
+            adapters::cmd_adapter_export,
+            adapters::cmd_mapping_rename,
+            adapters::cmd_mapping_delete,
+            inbox::cmd_inbox,
+            income::cmd_income,
+            income::cmd_export_income_csv,
+            inbox::cmd_inbox_count,
+            inbox::cmd_inbox_snooze,
+            inbox::cmd_inbox_unsnooze,
+            view::cmd_view_set,
             commands::cmd_import_open,
             commands::cmd_import_choose_adapter,
             mapper::cmd_mapper_inspect,
@@ -51,11 +75,40 @@ pub fn run() {
             market::cmd_set_refresh_on_start,
             market::cmd_assets,
             market::cmd_set_price_source,
+            market::cmd_set_benchmark_candidate,
+            market::cmd_add_benchmark_instrument,
             market::cmd_accept_suggestion,
             market::cmd_add_manual_price,
             market::cmd_delete_manual_price,
             market::cmd_merge_assets,
             market::cmd_undo_merge,
+            accounts::cmd_accounts_list,
+            accounts::cmd_account_detail,
+            accounts::cmd_account_chart,
+            accounts::cmd_account_rename,
+            accounts::cmd_account_add_identifier,
+            accounts::cmd_account_move_identifier,
+            accounts::cmd_account_delete,
+            accounts::cmd_account_merge_preview,
+            accounts::cmd_account_merge,
+            accounts::cmd_account_undo_merge,
+            accounts::cmd_set_second_currency,
+            accounts::cmd_account_set_price_source,
+            activity::cmd_activities,
+            activity::cmd_activity_detail,
+            activity::cmd_activity_options,
+            activity::cmd_activity_check,
+            activity::cmd_activity_save,
+            activity::cmd_activity_delete,
+            activity::cmd_activity_revert,
+            market_data::cmd_market_series,
+            market_data::cmd_market_series_detail,
+            market_data::cmd_market_set_value,
+            market_data::cmd_market_ignore,
+            market_data::cmd_market_revert,
+            market_data::cmd_market_export_csv,
+            reset::cmd_reset_preview,
+            reset::cmd_reset_data,
             tax::cmd_tax_years,
             tax::cmd_tax_report,
             tax::cmd_set_tax_treatment,

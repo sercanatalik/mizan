@@ -36,4 +36,13 @@ value_note: string | null,
 /**
  * Why there is no unrealized gain.
  */
-gain_note: string | null, };
+gain_note: string | null, 
+/**
+ * Acquisition lots still open, first in first out; `None` for short positions.
+ */
+open_lots: number | null, 
+/**
+ * The Market data series behind the price (for example `tefas:AFT` or
+ * `asset:12` for prices kept only in this database), when there is one.
+ */
+series_key: string | null, };

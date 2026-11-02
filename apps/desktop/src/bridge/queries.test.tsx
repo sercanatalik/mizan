@@ -20,7 +20,7 @@ test("query hooks call the matching command", async () => {
   const { wrapper } = setup();
   const { result } = renderHook(() => useHoldings(), { wrapper });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
-  expect(mockInvoke).toHaveBeenCalledWith("cmd_holdings");
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_holdings", { account_id: null });
 });
 
 test("decide sends snake_case args and stores the returned view", async () => {

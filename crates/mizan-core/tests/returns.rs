@@ -1049,3 +1049,80 @@ fn real_benchmark_matching_inflation_is_zero() {
         Some("100.00")
     );
 }
+
+#[test]
+fn one_account_scope_counts_transfers_as_flows() {
+    use mizan_core::portfolio::AccountScope;
+    use mizan_core::returns::in_scope;
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        "A",
+        vec![
+            json!({"kind": "deposit", "date": "2026-01-02", "net_cash": money("10000.00", "TRY")}),
+        ],
+    );
+    import(
+        &mut s,
+        'b',
+        "A",
+        vec![
+            json!({"kind": "internal_transfer", "date": "2026-02-02", "net_cash": money("-5000.00", "TRY")}),
+        ],
+    );
+    import(
+        &mut s,
+        'c',
+        "B",
+        vec![
+            json!({"kind": "internal_transfer", "date": "2026-02-02", "net_cash": money("5000.00", "TRY")}),
+        ],
+    );
+    let inputs = Inputs::load(&s, None).unwrap();
+    let today = day("2026-03-01");
+    let all = inputs.series(today);
+    let a_id = all.iter().find(|x| x.name == "A").unwrap().account_id;
+    let scoped = in_scope(all.clone(), AccountScope::One(a_id));
+    assert_eq!(scoped.len(), 1);
+    let v = returns_view(
+        &scoped,
+        &inputs.book,
+        &inputs.base,
+        None,
+        &inputs.inflation,
+        today,
+    );
+    let ytd = period(&v, Period::Ytd);
+    assert_eq!(
+        ytd.twr.value.as_deref(),
+        Some("+0.00%"),
+        "a transfer out is not a loss"
+    );
+    assert_eq!(ytd.accounts.len(), 1);
+    let all_view = returns_view(
+        &all,
+        &inputs.book,
+        &inputs.base,
+        None,
+        &inputs.inflation,
+        today,
+    );
+    let a_row = period(&all_view, Period::Ytd)
+        .accounts
+        .iter()
+        .find(|x| x.name == "A")
+        .unwrap()
+        .clone();
+    assert_eq!(
+        ytd.accounts[0], a_row,
+        "the scoped row is the account's own row"
+    );
+    let h = value_history(&scoped, &inputs.base, today);
+    let last = h.points.last().unwrap();
+    assert_eq!(
+        (last.value.as_deref(), last.contributions.as_str()),
+        (Some("5000.00"), "5000.00")
+    );
+    assert_eq!(in_scope(all.clone(), AccountScope::All), all);
+}

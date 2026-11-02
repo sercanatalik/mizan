@@ -124,6 +124,35 @@ pub struct CachedIndexValue {
     pub value: String,
 }
 
+/// One cached series summarised, for browsing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CachedSeries {
+    /// Provider id: `tefas`, `yahoo`, `twelvedata`, `tcmb` or an index source.
+    pub source: String,
+    /// Fund code, provider symbol, currency code or index series id.
+    pub id: String,
+    /// Currency of the values, when the series has one.
+    pub currency: Option<String>,
+    pub count: i64,
+    /// First and last date (or month).
+    pub first: String,
+    pub last: String,
+    /// The value on `last`.
+    pub latest: String,
+    /// Values dated Monday to Friday (daily series only).
+    pub weekday_values: i64,
+}
+
+/// One cached value of a series.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CachedPoint {
+    /// Date, or month for indices.
+    pub period: String,
+    pub value: String,
+    pub currency: Option<String>,
+    pub fetched_at: String,
+}
+
 /// The last request for an inflation series.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InflationCheck {
@@ -498,4 +527,146 @@ fn upsert_rate(conn: &Connection, r: &CachedRate, fetched_at: &str) -> Result<()
         params![r.currency, r.date, r.try_per_unit, r.source, fetched_at],
     )?;
     Ok(())
+}
+
+const WEEKDAY: &str = "SUM(CASE WHEN strftime('%w', date) IN ('0', '6') THEN 0 ELSE 1 END)";
+
+/// Browsing: series summaries and whole series. Read-only.
+impl HistoryCache {
+    fn summaries(&self, sql: &str) -> Result<Vec<CachedSeries>> {
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map([], |r| {
+            Ok(CachedSeries {
+                source: r.get(0)?,
+                id: r.get(1)?,
+                currency: r.get(2)?,
+                count: r.get(3)?,
+                first: r.get(4)?,
+                last: r.get(5)?,
+                weekday_values: r.get(6)?,
+                latest: r.get(7)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Every cached TEFAS fund series.
+    pub fn fund_series(&self) -> Result<Vec<CachedSeries>> {
+        self.summaries(&format!(
+            "SELECT 'tefas', code, 'TRY', COUNT(*), MIN(date), MAX(date), {WEEKDAY},
+                (SELECT price FROM fund_prices l WHERE l.code = f.code ORDER BY date DESC LIMIT 1)
+             FROM fund_prices f GROUP BY code ORDER BY code"
+        ))
+    }
+
+    /// Every cached listed series (provider and symbol).
+    pub fn listed_series(&self) -> Result<Vec<CachedSeries>> {
+        self.summaries(&format!(
+            "SELECT source, symbol,
+                (SELECT currency FROM listed_prices l WHERE l.source = f.source AND l.symbol = f.symbol ORDER BY date DESC LIMIT 1),
+                COUNT(*), MIN(date), MAX(date), {WEEKDAY},
+                (SELECT close FROM listed_prices l WHERE l.source = f.source AND l.symbol = f.symbol ORDER BY date DESC LIMIT 1)
+             FROM listed_prices f GROUP BY source, symbol ORDER BY symbol, source"
+        ))
+    }
+
+    /// Every cached exchange-rate series (TRY per unit).
+    pub fn rate_series(&self) -> Result<Vec<CachedSeries>> {
+        self.summaries(&format!(
+            "SELECT 'tcmb', currency, 'TRY', COUNT(*), MIN(date), MAX(date), {WEEKDAY},
+                (SELECT try_per_unit FROM fx_rates l WHERE l.currency = f.currency ORDER BY date DESC LIMIT 1)
+             FROM fx_rates f GROUP BY currency ORDER BY currency"
+        ))
+    }
+
+    /// Every cached index series (monthly).
+    pub fn index_series(&self) -> Result<Vec<CachedSeries>> {
+        self.summaries(
+            "SELECT source, series, NULL, COUNT(*), MIN(month), MAX(month), 0,
+                (SELECT value FROM inflation_index l WHERE l.source = f.source AND l.series = f.series ORDER BY month DESC LIMIT 1)
+             FROM inflation_index f GROUP BY source, series ORDER BY source, series",
+        )
+    }
+
+    fn points(&self, sql: &str, p: impl rusqlite::Params) -> Result<Vec<CachedPoint>> {
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map(p, |r| {
+            Ok(CachedPoint {
+                period: r.get(0)?,
+                value: r.get(1)?,
+                currency: r.get(2)?,
+                fetched_at: r.get(3)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// A fund's cached prices with fetch times, oldest first.
+    pub fn fund_points(&self, code: &str) -> Result<Vec<CachedPoint>> {
+        self.points(
+            "SELECT date, price, 'TRY', fetched_at FROM fund_prices WHERE code = ?1 ORDER BY date",
+            [code],
+        )
+    }
+
+    /// A listed symbol's cached closes with fetch times, oldest first.
+    pub fn listed_points(&self, source: &str, symbol: &str) -> Result<Vec<CachedPoint>> {
+        self.points(
+            "SELECT date, close, currency, fetched_at FROM listed_prices WHERE source = ?1 AND symbol = ?2 ORDER BY date",
+            [source, symbol],
+        )
+    }
+
+    /// A currency's cached rates with fetch times, oldest first.
+    pub fn rate_points(&self, currency: &str) -> Result<Vec<CachedPoint>> {
+        self.points(
+            "SELECT date, try_per_unit, 'TRY', fetched_at FROM fx_rates WHERE currency = ?1 ORDER BY date",
+            [currency],
+        )
+    }
+
+    /// An index series' cached months with fetch times, oldest first.
+    pub fn index_points(&self, source: &str, series: &str) -> Result<Vec<CachedPoint>> {
+        self.points(
+            "SELECT month, value, NULL, fetched_at FROM inflation_index WHERE source = ?1 AND series = ?2 ORDER BY month",
+            [source, series],
+        )
+    }
+}
+
+/// Starting over: a backup copy and clearing every row.
+impl HistoryCache {
+    /// Copy the cache to `path`, which must not exist yet.
+    pub fn backup_to(&self, path: &Path) -> Result<()> {
+        crate::reset::vacuum_into(&self.conn, path)
+    }
+
+    /// Delete every row of every table in one transaction; the schema stays.
+    pub fn clear(&mut self) -> Result<()> {
+        let tables = crate::reset::user_tables(&self.conn)?;
+        let tx = self.conn.transaction()?;
+        for t in tables {
+            tx.execute(&format!("DELETE FROM \"{t}\""), [])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Rows in the cache's value tables, for a reset preview.
+    pub fn value_count(&self) -> Result<i64> {
+        let mut n = 0;
+        for t in [
+            "fund_prices",
+            "listed_prices",
+            "fx_rates",
+            "inflation_index",
+        ] {
+            n += self
+                .conn
+                .query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| {
+                    r.get::<_, i64>(0)
+                })?;
+        }
+        Ok(n)
+    }
 }

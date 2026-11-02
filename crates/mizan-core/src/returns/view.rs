@@ -26,7 +26,7 @@ pub struct Figure {
 }
 
 impl Figure {
-    fn of(rate: Rate, estimated_days: u32) -> Self {
+    pub(crate) fn of(rate: Rate, estimated_days: u32) -> Self {
         match rate {
             Rate::Value {
                 cumulative,
@@ -278,7 +278,11 @@ fn value_at(s: &AccountSeries, d: Date) -> Decimal {
     s.day(d).and_then(|v| v.value).unwrap_or_default()
 }
 
-fn account_points(s: &AccountSeries, from: Date, today: Date) -> (Decimal, Vec<Point>, u32) {
+pub(crate) fn account_points(
+    s: &AccountSeries,
+    from: Date,
+    today: Date,
+) -> (Decimal, Vec<Point>, u32) {
     let start_value = if s.first().is_some_and(|f| from > f) {
         value_at(s, prev(from))
     } else {

@@ -1,14 +1,18 @@
 //! Every stored price and rate, loaded once, with "newest on or before day D" lookups.
 //!
-//! Sources, in order of precedence on the same date: manual prices, provider
-//! prices in the user database, then the shared market-history cache (TEFAS
-//! fund prices through each asset's fund code, and exchange rates).
+//! Sources, in order of precedence on the same date: manual prices, the user's
+//! series edits, provider prices in the user database, then the shared
+//! market-history cache (TEFAS fund prices through each asset's fund code,
+//! listed closes through its provider symbol, and exchange rates). A series
+//! value the user ignored counts as absent unless a manual price covers it.
 
 use std::collections::HashMap;
 use std::str::FromStr;
 
 use mizan_import::{Code, Date};
-use mizan_storage::{HistoryCache, PriceSourceKind, StorageError, Store, MANUAL};
+use mizan_storage::{
+    HistoryCache, PriceSourceKind, SeriesEdit, SeriesKind, StorageError, Store, MANUAL,
+};
 use rust_decimal::Decimal;
 
 /// A dated price in a currency.
@@ -50,11 +54,51 @@ fn put<V>(map: &mut HashMap<Date, (u8, V)>, date: Date, rank: u8, v: V) {
     }
 }
 
+/// The series key of an asset's price source, for example `tefas:AFT`.
+pub fn series_key(source: &PriceSourceKind) -> Option<String> {
+    match source {
+        PriceSourceKind::Tefas { fund_code } => {
+            Some(format!("tefas:{}", fund_code.trim().to_uppercase()))
+        }
+        other => other
+            .listed()
+            .map(|(provider, symbol)| format!("{provider}:{}", symbol.trim().to_uppercase())),
+    }
+}
+
+/// Apply a series' edits to a ranked slot: values at rank 1, and ignored
+/// dates dropped unless a manual price (rank 0) covers them.
+fn apply_edits<V>(
+    slot: &mut Ranked<V>,
+    edits: &[&SeriesEdit],
+    value: impl Fn(&SeriesEdit, Decimal) -> V,
+) {
+    for e in edits {
+        let Ok(date) = Date::parse(&e.period) else {
+            continue;
+        };
+        if e.ignored {
+            if slot.get(&date).is_some_and(|(r, _)| *r != 0) {
+                slot.remove(&date);
+            }
+        } else if let Some(v) = e.value.as_deref().and_then(dec) {
+            put(slot, date, 1, value(e, v));
+        }
+    }
+}
+
 impl PriceBook {
     /// Load every price of every asset and every rate.
     pub fn load(store: &Store, cache: Option<&HistoryCache>) -> Result<Self, StorageError> {
         let keys = store.key_map()?;
         let sources = store.price_sources()?;
+        let all_edits = store.all_series_edits()?;
+        let edits_of = |kind: SeriesKind, series: &str| -> Vec<&SeriesEdit> {
+            all_edits
+                .iter()
+                .filter(|e| e.kind == kind && e.series == series)
+                .collect()
+        };
         let mut by_key: HashMap<String, Ranked<(Decimal, Code)>> = HashMap::new();
         for a in store.list_assets()? {
             let key = keys
@@ -70,7 +114,7 @@ impl PriceBook {
                 ) else {
                     continue;
                 };
-                let rank = if p.source == MANUAL { 0 } else { 1 };
+                let rank = if p.source == MANUAL { 0 } else { 2 };
                 put(slot, date, rank, (v, c));
             }
             match (cache, sources.get(&a.id)) {
@@ -78,7 +122,7 @@ impl PriceBook {
                     let code = fund_code.trim().to_uppercase();
                     for p in cache.fund_prices(&code)? {
                         if let (Ok(date), Some(v)) = (Date::parse(&p.date), dec(&p.value)) {
-                            put(slot, date, 2, (v, Code::parse("TRY").expect("valid")));
+                            put(slot, date, 3, (v, Code::parse("TRY").expect("valid")));
                         }
                     }
                 }
@@ -91,12 +135,27 @@ impl PriceBook {
                                 dec(&p.close),
                                 Code::parse(&p.currency),
                             ) {
-                                put(slot, date, 2, (v, c));
+                                put(slot, date, 3, (v, c));
                             }
                         }
                     }
                 }
                 _ => {}
+            }
+            if let Some(series) = sources.get(&a.id).and_then(series_key) {
+                let default_ccy = a
+                    .currency
+                    .as_deref()
+                    .and_then(|c| Code::parse(c).ok())
+                    .unwrap_or_else(|| Code::parse("TRY").expect("valid"));
+                apply_edits(slot, &edits_of(SeriesKind::Price, &series), |e, v| {
+                    let c = e
+                        .currency
+                        .as_deref()
+                        .and_then(|c| Code::parse(c).ok())
+                        .unwrap_or_else(|| default_ccy.clone());
+                    (v, c)
+                });
             }
         }
         let prices = by_key
@@ -116,6 +175,12 @@ impl PriceBook {
             .collect();
 
         let mut currencies: Vec<String> = store.fx_currencies()?;
+        currencies.extend(
+            all_edits
+                .iter()
+                .filter(|e| e.kind == SeriesKind::Rate)
+                .map(|e| e.series.clone()),
+        );
         let mut rates_by: HashMap<Code, HashMap<Date, (u8, Decimal)>> = HashMap::new();
         if let Some(cache) = cache {
             currencies.extend(cache.rate_currencies()?);
@@ -127,16 +192,18 @@ impl PriceBook {
             let slot = rates_by.entry(code).or_default();
             for r in store.fx_rates_for(&c)? {
                 if let (Ok(d), Some(v)) = (Date::parse(&r.date), dec(&r.try_per_unit)) {
-                    put(slot, d, 0, v);
+                    put(slot, d, 2, v);
                 }
             }
             if let Some(cache) = cache {
                 for r in cache.rates(&c)? {
                     if let (Ok(d), Some(v)) = (Date::parse(&r.date), dec(&r.value)) {
-                        put(slot, d, 1, v);
+                        put(slot, d, 3, v);
                     }
                 }
             }
+            // Rates have no manual layer: edits come first and ignores always apply.
+            apply_edits(slot, &edits_of(SeriesKind::Rate, &c), |_, v| v);
         }
         let rates = rates_by
             .into_iter()

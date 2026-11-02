@@ -18,6 +18,9 @@ pub use view::{
     returns_view, value_history, Benchmark, Figure, PeriodReturns, ReturnsView, ValueHistory,
 };
 
+use rust_decimal::Decimal;
+
+use crate::portfolio::AccountScope;
 use crate::valuation::base_currency;
 
 /// Everything the engine needs, loaded once.
@@ -39,7 +42,7 @@ impl Inputs {
         }
         let base = base_currency(store)?;
         Ok(Inputs {
-            inflation: Inflation::load(cache, &base)?,
+            inflation: Inflation::load(store, cache, &base)?,
             book: PriceBook::load(store, cache)?,
             base,
             accounts,
@@ -52,5 +55,25 @@ impl Inputs {
             .iter()
             .map(|r| account_series(r, &self.book, &self.base, today))
             .collect()
+    }
+}
+
+/// The series of the accounts in `scope`. With one account, transfers to and
+/// from the user's other accounts cross the scope's edge, so they become
+/// external flows, as they are in that account's own returns.
+pub fn in_scope(series: Vec<AccountSeries>, scope: AccountScope) -> Vec<AccountSeries> {
+    match scope {
+        AccountScope::All => series,
+        AccountScope::One(id) => series
+            .into_iter()
+            .filter(|s| s.account_id == id)
+            .map(|mut s| {
+                for d in &mut s.days {
+                    d.external_flow += d.internal_flow;
+                    d.internal_flow = Decimal::ZERO;
+                }
+                s
+            })
+            .collect(),
     }
 }
