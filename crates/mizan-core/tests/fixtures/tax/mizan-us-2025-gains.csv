@@ -1,0 +1,4 @@
+section,description,date_acquired,date_sold,proceeds,cost_basis,adjustment_code,adjustment,gain,quantity,account,reason,notes
+short,"iShares Core MSCI World, Acc (IWDA)",2025-01-06,2025-06-10,450.00,500.00,,,-50.00,5,IB1,,
+long,AFT,2024-02-01,2025-02-03,,,,,,1000,IB1,no exchange rate,
+long,Apple Inc. (AAPL),2023-03-01,2025-06-10,2200.00,1500.00,,,700.00,10,IB1,,

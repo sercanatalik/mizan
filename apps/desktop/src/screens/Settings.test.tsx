@@ -29,7 +29,7 @@ test("lists built-in providers with switches and toggles one off", async () => {
   serve();
   renderApp("/settings");
   const rows = await screen.findAllByTestId("provider-row");
-  expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["TEFAS", "TCMB", "Yahoo Finance", "Twelve Data", "Eurostat", "BLS", "ONS"]);
+  expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["TEFAS", "TCMB", "Yahoo Finance", "Twelve Data", "Eurostat", "BLS", "ONS", "EVDS"]);
   expect(rows[2]).toHaveTextContent("unofficial source");
   expect(rows[3]).toHaveTextContent("the free plan covers US listings");
   expect(rows[0]).toHaveTextContent("Turkish investment and pension fund prices");
@@ -153,6 +153,18 @@ test("a saved key shows only its masked hint and can be cleared", async () => {
   expect(within(rows[3]!).getByTestId("api-key-hint")).toHaveTextContent("••••3f9a");
   await userEvent.click(within(rows[3]!).getByRole("button", { name: "Clear key" }));
   expect(invoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "twelvedata", key: null });
+});
+
+test("EVDS asks for a key and shows it masked once saved", async () => {
+  serve();
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("provider-row");
+  const evds = rows[7]!;
+  expect(evds).toHaveTextContent("EVDS");
+  expect(evds).toHaveTextContent("Yİ-ÜFE");
+  await userEvent.type(within(evds).getByPlaceholderText("Paste your key"), "evds-key-41d9");
+  await userEvent.click(within(evds).getByRole("button", { name: "Save key" }));
+  expect(invoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "evds", key: "evds-key-41d9" });
 });
 
 test("listed history counts years and waits for an API key", async () => {

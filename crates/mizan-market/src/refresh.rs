@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::http::Http;
 use crate::inflation::{self, Plan};
 use crate::listed::{listed_provider, Close, ListedError, ListedProvider};
-use crate::{api_key, is_enabled, tcmb, tefas, twelvedata, yahoo, PROVIDERS};
+use crate::{api_key, evds, is_enabled, tcmb, tefas, twelvedata, yahoo, PROVIDERS};
 
 pub const LAST_REFRESH_KEY: &str = "last_refresh_at";
 
@@ -456,6 +456,74 @@ fn refresh_inflation(
     }
 }
 
+/// Fetch the Yİ-ÜFE producer price index from EVDS, with the user's key.
+fn refresh_evds(
+    store: &Store,
+    cache: Option<&mut HistoryCache>,
+    http: &dyn Http,
+    today: Date,
+    now: &str,
+) -> Result<SourceReport, StorageError> {
+    let id = evds::SOURCE;
+    let series = evds::SERIES;
+    let Some(key) = api_key(store, id) else {
+        return Ok(report(
+            id,
+            SourceStatus::NeedsKey,
+            0,
+            vec!["needs an API key".into()],
+        ));
+    };
+    let idle = |m: String| Ok(report(id, SourceStatus::Idle, 0, vec![m]));
+    let Some(cache) = cache else {
+        return idle("history cache unavailable".into());
+    };
+    let cached: Vec<inflation::YearMonth> = cache
+        .inflation_index(series.source, series.id)?
+        .iter()
+        .filter_map(|v| inflation::YearMonth::parse(&v.month))
+        .collect();
+    let last_check = cache
+        .inflation_check(series.source, series.id)?
+        .and_then(|c| parse_time(&c.checked_at));
+    let Some(now_t) = parse_time(now) else {
+        return Err(StorageError::Invalid(format!("bad refresh time {now}")));
+    };
+    let from = match inflation::plan(&cached, last_check, first_activity(store)?, today, now_t) {
+        Plan::Skip(why) => return idle(format!("{}: {why}", series.label)),
+        Plan::Fetch { from } => from,
+    };
+    let to = inflation::YearMonth::of(today.0);
+    match evds::fetch(http, &key, series.id, from, to) {
+        Ok(values) => {
+            let rows: Vec<mizan_storage::CachedIndexValue> = values
+                .iter()
+                .map(|v| mizan_storage::CachedIndexValue {
+                    month: v.month.to_string(),
+                    value: v.value.to_string(),
+                })
+                .collect();
+            cache.commit_inflation(series.source, series.id, &rows, true, now)?;
+            let through = cache
+                .inflation_index(series.source, series.id)?
+                .last()
+                .and_then(|v| inflation::YearMonth::parse(&v.month))
+                .map(|m| format!("{} through {}", series.label, m.label()))
+                .unwrap_or_else(|| format!("{}: no values published", series.label));
+            Ok(report(id, SourceStatus::Ok, values.len(), vec![through]))
+        }
+        Err(e) => {
+            cache.commit_inflation(series.source, series.id, &[], false, now)?;
+            Ok(report(
+                id,
+                SourceStatus::Failed,
+                0,
+                vec![format!("EVDS: {e}")],
+            ))
+        }
+    }
+}
+
 /// Run one refresh. `now` is an RFC 3339 timestamp used for fetch times and the log.
 /// The clock is passed in to keep this testable. When a history cache is given,
 /// fetched prices and rates are also written to it; a cache failure is reported
@@ -477,6 +545,7 @@ pub fn refresh(
         let r = match p.id {
             tefas::SOURCE => refresh_tefas(store, cache.as_deref_mut(), http, today, now)?,
             tcmb::SOURCE => refresh_tcmb(store, cache.as_deref_mut(), http, now)?,
+            evds::SOURCE => refresh_evds(store, cache.as_deref_mut(), http, today, now)?,
             id if inflation::PROVIDERS.contains(&id) => {
                 refresh_inflation(store, cache.as_deref_mut(), http, id, today, now)?
             }

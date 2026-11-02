@@ -7,6 +7,7 @@ pub mod menu;
 pub mod returns;
 pub mod session;
 pub mod state;
+pub mod tax;
 
 #[cfg(test)]
 mod bindings;
@@ -55,6 +56,10 @@ pub fn run() {
             market::cmd_delete_manual_price,
             market::cmd_merge_assets,
             market::cmd_undo_merge,
+            tax::cmd_tax_years,
+            tax::cmd_tax_report,
+            tax::cmd_set_tax_treatment,
+            tax::cmd_export_tax_csv,
         ])
         .setup(|app| {
             let dir = app.path().app_data_dir()?;

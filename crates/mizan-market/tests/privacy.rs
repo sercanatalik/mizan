@@ -18,6 +18,20 @@ struct Fake;
 
 impl Http for Fake {
     fn get(&self, url: &str) -> Result<Response, HttpError> {
+        assert!(
+            !url.contains(KEY) && !url.contains(EVDS_KEY),
+            "an API key went into a URL: {url}"
+        );
+        if url.starts_with(evds::BASE) {
+            return Ok(Response {
+                status: 200,
+                body: std::fs::read_to_string(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/evds/yiufe.json"
+                ))
+                .unwrap(),
+            });
+        }
         if url.starts_with(yahoo::BASE) {
             return Ok(Response {
                 status: 200,
@@ -129,7 +143,16 @@ fn base_currency_other_than_try_needs_rates_from_the_first_activity() {
     assert_eq!(inp.fx_from, Some(Date::parse("2025-03-05").unwrap()));
 }
 
+#[test]
+fn uk_or_us_tax_report_needs_rates_from_the_first_activity() {
+    let (mut store, _) = pension_store();
+    store.set_setting(backfill::TAX_RATES_KEY, "true").unwrap();
+    let inp = PlanInput::from_store(&store).unwrap();
+    assert_eq!(inp.fx_from, Some(Date::parse("2025-03-05").unwrap()));
+}
+
 const KEY: &str = "td-private-key-7c21";
+const EVDS_KEY: &str = "evds-private-key-41d9";
 
 #[test]
 fn cache_contains_no_account_or_activity_data() {
@@ -154,6 +177,7 @@ fn cache_contains_no_account_or_activity_data() {
         )
         .unwrap();
     set_api_key(&mut store, "twelvedata", Some(KEY)).unwrap();
+    set_api_key(&mut store, "evds", Some(EVDS_KEY)).unwrap();
     let mut cache = HistoryCache::open_in_memory().unwrap();
     let today = Date::parse("2025-06-10").unwrap();
     refresh(
@@ -224,7 +248,17 @@ fn cache_contains_no_account_or_activity_data() {
         .inflation_index("bls", "CUUR0000SA0")
         .unwrap()
         .is_empty());
-    let mut private: Vec<String> = vec!["9000001".into(), "Anadolu".into(), KEY.into()];
+    // The Turkish producer price index was fetched with the EVDS key.
+    assert!(!cache
+        .inflation_index("evds", "TP.TUFE1YI.T1")
+        .unwrap()
+        .is_empty());
+    let mut private: Vec<String> = vec![
+        "9000001".into(),
+        "Anadolu".into(),
+        KEY.into(),
+        EVDS_KEY.into(),
+    ];
     for r in batch["records"].as_array().unwrap() {
         if let Some(q) = r["quantity"].as_str() {
             private.push(q.into());

@@ -1,6 +1,7 @@
 //! Market data for Mizan: built-in providers (TEFAS fund prices, TCMB exchange
-//! rates, Yahoo Finance and Twelve Data listed-asset closes, and Eurostat, BLS
-//! and ONS inflation indices) and the refresh that stores their results.
+//! rates, Yahoo Finance and Twelve Data listed-asset closes, Eurostat, BLS
+//! and ONS inflation indices, and the EVDS producer price index) and the
+//! refresh that stores their results.
 //!
 //! This is the only crate that touches the network, and only inside
 //! [`refresh`]. Everything else reads stored prices and rates.
@@ -8,6 +9,7 @@
 pub mod backfill;
 pub mod bls;
 pub mod eurostat;
+pub mod evds;
 pub mod http;
 pub mod inflation;
 pub mod listed;
@@ -30,7 +32,7 @@ pub struct ProviderInfo {
 }
 
 /// Built-in providers, enabled by default; each can be turned off in Settings.
-pub const PROVIDERS: [ProviderInfo; 7] = [
+pub const PROVIDERS: [ProviderInfo; 8] = [
     ProviderInfo {
         id: tefas::SOURCE,
         name: "TEFAS",
@@ -67,10 +69,15 @@ pub const PROVIDERS: [ProviderInfo; 7] = [
         name: "ONS",
         supplies: "UK consumer price index (GBP inflation) from the Office for National Statistics",
     },
+    ProviderInfo {
+        id: evds::SOURCE,
+        name: "EVDS",
+        supplies: "Turkish producer price index (Yİ-ÜFE) from the TCMB, for indexing costs in Turkish tax reports; needs your free API key",
+    },
 ];
 
 /// Providers that need an API key before they make any request.
-pub const NEEDS_KEY: [&str; 1] = [twelvedata::SOURCE];
+pub const NEEDS_KEY: [&str; 2] = [twelvedata::SOURCE, evds::SOURCE];
 
 pub fn api_key_setting(id: &str) -> String {
     format!("provider.{id}.api_key")

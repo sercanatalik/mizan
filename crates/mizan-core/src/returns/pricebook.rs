@@ -182,6 +182,15 @@ impl PriceBook {
         on_or_before(self.rates.get(currency)?, day, |(d, _)| *d).map(|(_, r)| *r)
     }
 
+    /// TRY per one unit of `currency` with the date it was published, newest
+    /// on or before `day`. TRY is 1, dated `day`.
+    pub fn dated_rate(&self, currency: &Code, day: Date) -> Option<(Date, Decimal)> {
+        if currency.as_str() == "TRY" {
+            return Some((day, Decimal::ONE));
+        }
+        on_or_before(self.rates.get(currency)?, day, |(d, _)| *d).copied()
+    }
+
     /// Convert `amount` between currencies through TRY with rates for `day`.
     pub fn convert(&self, amount: Decimal, from: &Code, to: &Code, day: Date) -> Option<Decimal> {
         if from == to {

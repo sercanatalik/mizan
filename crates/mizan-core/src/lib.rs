@@ -11,6 +11,7 @@ pub mod replay;
 pub mod resolve;
 pub mod returns;
 pub mod review;
+pub mod tax;
 pub mod valuation;
 
 pub use consistency::{check_record, ConsistencyWarning};

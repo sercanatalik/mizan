@@ -6,6 +6,7 @@ import { Performance } from "../screens/Performance";
 import { Assets } from "../screens/Assets";
 import { Placeholder } from "../screens/Placeholder";
 import { Settings } from "../screens/Settings";
+import { Tax } from "../screens/Tax";
 import { Layout } from "./Layout";
 
 export const routes: RouteObject[] = [
@@ -19,6 +20,7 @@ export const routes: RouteObject[] = [
       { path: "imports", element: <Imports /> },
       { path: "activity", element: <Placeholder title="Activity" /> },
       { path: "income", element: <Placeholder title="Income" /> },
+      { path: "tax", element: <Tax /> },
       { path: "accounts", element: <Placeholder title="Accounts" /> },
       { path: "assets", element: <Assets /> },
       { path: "settings", element: <Settings /> },

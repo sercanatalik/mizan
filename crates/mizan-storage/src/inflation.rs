@@ -29,6 +29,17 @@ impl InflationSeries {
     }
 }
 
+/// Turkish domestic producer price index (Yİ-ÜFE, 2003=100), used to index
+/// the cost of foreign securities in Turkish tax reports. Not a base-currency
+/// deflator, so it is not in [`SERIES`].
+pub const PPI_TR: InflationSeries = InflationSeries {
+    currency: "TRY",
+    source: "evds",
+    id: "TP.TUFE1YI.T1",
+    label: "Yİ-ÜFE",
+    provider: "TCMB EVDS",
+};
+
 pub const SERIES: [InflationSeries; 4] = [
     InflationSeries {
         currency: "TRY",

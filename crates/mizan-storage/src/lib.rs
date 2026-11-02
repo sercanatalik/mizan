@@ -27,6 +27,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_init.sql"),
     include_str!("../migrations/0002_market.sql"),
     include_str!("../migrations/0003_listed.sql"),
+    include_str!("../migrations/0004_tax.sql"),
 ];
 
 #[derive(Debug, Error)]
@@ -96,6 +97,40 @@ pub struct AccountRow {
     pub id: AccountId,
     pub name: String,
     pub hints: Vec<String>,
+    pub tax_treatment: TaxTreatment,
+}
+
+/// How an account is taxed. ISA and pension accounts are left out of tax reports.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TaxTreatment {
+    #[default]
+    Taxable,
+    Isa,
+    Pension,
+}
+
+impl TaxTreatment {
+    pub const ALL: [TaxTreatment; 3] = [
+        TaxTreatment::Taxable,
+        TaxTreatment::Isa,
+        TaxTreatment::Pension,
+    ];
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TaxTreatment::Taxable => "taxable",
+            TaxTreatment::Isa => "isa",
+            TaxTreatment::Pension => "pension",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        TaxTreatment::ALL.into_iter().find(|t| t.as_str() == s)
+    }
+
+    pub fn is_taxable(&self) -> bool {
+        *self == TaxTreatment::Taxable
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -205,6 +240,22 @@ impl Store {
              ON CONFLICT(hint) DO UPDATE SET account_id = excluded.account_id",
             params![hint, account_id],
         )?;
+        Ok(())
+    }
+
+    /// Change an account's tax treatment.
+    pub fn set_tax_treatment(
+        &mut self,
+        account_id: AccountId,
+        treatment: TaxTreatment,
+    ) -> Result<()> {
+        let n = self.conn.execute(
+            "UPDATE accounts SET tax_treatment = ?1 WHERE id = ?2",
+            params![treatment.as_str(), account_id],
+        )?;
+        if n == 0 {
+            return Err(StorageError::NotFound(format!("account {account_id}")));
+        }
         Ok(())
     }
 
@@ -418,7 +469,8 @@ impl Store {
 
     pub fn list_accounts(&self) -> Result<Vec<AccountRow>> {
         let mut stmt = self.conn.prepare(
-            "SELECT a.id, a.name, h.hint FROM accounts a LEFT JOIN account_hints h ON h.account_id = a.id
+            "SELECT a.id, a.name, h.hint, a.tax_treatment FROM accounts a
+             LEFT JOIN account_hints h ON h.account_id = a.id
              ORDER BY a.id, h.hint",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -426,16 +478,18 @@ impl Store {
                 r.get::<_, AccountId>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, Option<String>>(2)?,
+                r.get::<_, String>(3)?,
             ))
         })?;
         let mut out: Vec<AccountRow> = Vec::new();
         for row in rows {
-            let (id, name, hint) = row?;
+            let (id, name, hint, treatment) = row?;
             if out.last().map(|a| a.id) != Some(id) {
                 out.push(AccountRow {
                     id,
                     name,
                     hints: Vec::new(),
+                    tax_treatment: TaxTreatment::parse(&treatment).unwrap_or_default(),
                 });
             }
             if let Some(h) = hint {
@@ -560,5 +614,46 @@ impl Store {
         tx.execute("DELETE FROM import_batches WHERE id = ?1", [batch_id])?;
         tx.commit()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn existing_accounts_become_taxable_and_invalid_treatment_is_rejected() {
+        // A database from before the tax migration, with one account.
+        let conn = Connection::open_in_memory().unwrap();
+        for (i, sql) in MIGRATIONS.iter().take(3).enumerate() {
+            conn.execute_batch(sql).unwrap();
+            conn.pragma_update(None, "user_version", (i + 1) as i64)
+                .unwrap();
+        }
+        conn.execute("INSERT INTO accounts (name) VALUES ('IBKR')", [])
+            .unwrap();
+        let mut store = Store { conn };
+        store.migrate().unwrap();
+        assert_eq!(store.schema_version().unwrap(), 4);
+        let accounts = store.list_accounts().unwrap();
+        assert_eq!(accounts[0].tax_treatment, TaxTreatment::Taxable);
+
+        store
+            .set_tax_treatment(accounts[0].id, TaxTreatment::Pension)
+            .unwrap();
+        assert_eq!(
+            store.list_accounts().unwrap()[0].tax_treatment,
+            TaxTreatment::Pension
+        );
+        assert!(store
+            .conn
+            .execute("UPDATE accounts SET tax_treatment = 'offshore'", [])
+            .is_err());
+        assert!(matches!(
+            store.set_tax_treatment(99, TaxTreatment::Isa),
+            Err(StorageError::NotFound(_))
+        ));
+        assert_eq!(TaxTreatment::parse("isa"), Some(TaxTreatment::Isa));
+        assert_eq!(TaxTreatment::parse("ISA"), None);
     }
 }

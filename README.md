@@ -24,13 +24,14 @@ statement, and can be undone.
 | **Holdings** | Positions and cash per account with price, value, weight and unrealized gain; provisional average cost; flags for unknown cost basis and failed balance checks |
 | **Overview** | Portfolio and account totals in your base currency, value-over-time chart with net contributions, latest balance checks, a "needs attention" list |
 | **Performance** | Time- and money-weighted returns per account and in total for 1M, 3M, YTD, 1Y and since start; a benchmark of your choice; growth chart; net contributions. A Nominal / Real switch shows every figure after inflation in your base currency (TRY, USD, EUR or GBP). Days without a market price use trade prices or cost and are marked as estimates |
-| **Market data** | Built-in TEFAS (Turkish fund prices), Yahoo Finance (US and European stocks and ETFs, no key), Twelve Data (stocks and ETFs with a free key) and TCMB (exchange rates) providers, plus Eurostat, BLS and ONS inflation indices, each switchable in Settings; prices stored as traded, with splits undone; manual prices; refresh on demand or on start; price history downloaded once in the background into a shared cache in `~/.mizan` |
+| **Market data** | Built-in TEFAS (Turkish fund prices), Yahoo Finance (US and European stocks and ETFs, no key), Twelve Data (stocks and ETFs with a free key) and TCMB (exchange rates) providers, plus Eurostat, BLS and ONS inflation indices and the EVDS producer price index (free key), each switchable in Settings; prices stored as traded, with splits undone; manual prices; refresh on demand or on start; price history downloaded once in the background into a shared cache in `~/.mizan` |
+| **Tax** | Working papers for UK, US and Turkish returns: realized gains with UK share matching (same day, 30 days, pool), US first in, first out with short and long terms and wash sales, Turkish first in, first out with TCMB rates and Yİ-ÜFE indexation; dividends and interest with tax withheld; ISA and pension accounts left out; CSV export. No tax owed is computed |
 | **Assets** | Price source per asset chosen from a provider menu, TEFAS and Yahoo symbol suggestions, manual prices, merging duplicate assets |
 | **CLI** | `mizan-cli import validate` and `mizan-cli import preview` |
 
 Not yet: prices for Borsa Istanbul and other markets beyond the US and Europe
 (use manual prices; returns value them at trade prices meanwhile),
-tax lots, and the AI-assisted column mapper. Every screen shows real data only;
+and the AI-assisted column mapper. Every screen shows real data only;
 where something can't be computed yet, it says what is missing instead of
 showing a number.
 
@@ -126,9 +127,9 @@ docs/                  schema, adapter, market data, returns and desktop documen
 ## Roadmap
 
 1. AI-assisted column mapper that writes mapping files; more bundled adapters
-2. Tax lots and realized gains
-3. Prices for more markets (Borsa Istanbul)
-4. Official TÜFE through the central bank's EVDS service (optional key)
+2. Prices for more markets (Borsa Istanbul)
+3. Holdings cost from tax lots instead of provisional average cost
+4. Official TÜFE through the EVDS service for real returns
 
 ## Contributing
 

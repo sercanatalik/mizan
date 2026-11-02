@@ -32,10 +32,19 @@ test("sidebar lists sections in spec order without spending", () => {
     .getAllByRole("link")
     .map((a) => a.textContent)
     .filter((t) => t !== "mizan");
-  expect(labels).toEqual(["Overview", "Holdings", "Activity", "Performance", "Income", "Imports", "Accounts", "Assets", "Settings"]);
+  expect(labels).toEqual(["Overview", "Holdings", "Activity", "Performance", "Income", "Tax", "Imports", "Accounts", "Assets", "Settings"]);
   expect(within(nav).queryByText(/spending|budget/i)).toBeNull();
   expect(within(nav).getByText("Portfolio")).toBeInTheDocument();
   expect(within(nav).getByText("Data")).toBeInTheDocument();
+});
+
+test("navigating to Tax opens the Tax screen", async () => {
+  renderApp();
+  const nav = screen.getByRole("navigation", { name: "Main" });
+  await userEvent.click(within(nav).getByRole("link", { name: "Tax" }));
+  expect(await screen.findByRole("heading", { name: "Tax", level: 1 })).toBeInTheDocument();
+  expect(within(nav).getByRole("link", { name: "Tax" })).toHaveAttribute("aria-current", "page");
+  expect(await screen.findByText("No taxable activity yet")).toBeInTheDocument();
 });
 
 test("navigating marks the current entry", async () => {

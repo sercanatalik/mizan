@@ -5,6 +5,7 @@ export type SectionId =
   | "activity"
   | "performance"
   | "income"
+  | "tax"
   | "imports"
   | "accounts"
   | "assets"
@@ -24,6 +25,7 @@ export const SECTIONS: Section[] = [
   { id: "activity", label: "Activity", path: "/activity", group: "Portfolio", icon: "M3 12h4l3-8 4 16 3-8h4" },
   { id: "performance", label: "Performance", path: "/performance", group: "Portfolio", icon: "M3 17l6-6 4 4 8-8M15 7h6v6" },
   { id: "income", label: "Income", path: "/income", group: "Portfolio", icon: "M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6" },
+  { id: "tax", label: "Tax", path: "/tax", group: "Portfolio", icon: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3" },
   { id: "imports", label: "Imports", path: "/imports", group: "Data", icon: "M12 3v12M7 10l5 5 5-5M4 21h16" },
   { id: "accounts", label: "Accounts", path: "/accounts", group: "Data", icon: "M3 10l9-6 9 6M5 10v9M19 10v9M9 10v9M15 10v9M3 21h18" },
   { id: "assets", label: "Assets", path: "/assets", group: "Data", icon: "M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01" },

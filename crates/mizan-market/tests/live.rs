@@ -73,3 +73,24 @@ fn inflation_indices_are_published_for_every_supported_currency() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
+
+#[test]
+#[ignore = "network"]
+fn evds_returns_recent_producer_price_index_with_a_key() {
+    // Needs a free EVDS key: MIZAN_EVDS_KEY=... cargo test -p mizan-market --test live -- --ignored
+    let Some(key) = std::env::var("MIZAN_EVDS_KEY")
+        .ok()
+        .filter(|k| !k.trim().is_empty())
+    else {
+        eprintln!("MIZAN_EVDS_KEY not set; skipping the EVDS check");
+        return;
+    };
+    use mizan_market::evds;
+    use mizan_market::inflation::YearMonth;
+    let http = ReqwestHttp::new().unwrap();
+    let to = YearMonth::of(today().0);
+    let v = evds::fetch(&http, key.trim(), evds::SERIES.id, to.shift(-12), to).unwrap();
+    let last = v.last().expect("at least one month");
+    assert!(last.month >= to.shift(-3), "latest month {:?}", last.month);
+    eprintln!("Yİ-ÜFE {} = {}", last.month, last.value);
+}

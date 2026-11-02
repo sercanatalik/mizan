@@ -23,6 +23,9 @@ use crate::{is_enabled, tcmb, tefas};
 
 /// Setting holding the benchmark asset id (shared with the returns screen).
 pub const BENCHMARK_KEY: &str = "benchmark.asset";
+/// Setting set once a UK or US tax report has been opened: their currencies
+/// need exchange rates from the first activity even for a TRY-only history.
+pub const TAX_RATES_KEY: &str = "tax.rates_needed";
 /// Key under which TCMB days are recorded in the cache (rates cover every currency).
 pub const TCMB_KEY: &str = "*";
 /// TCMB publishes no limit; static files, fetched politely one a second.
@@ -135,7 +138,8 @@ impl PlanInput {
             .iter()
             .filter_map(|id| crate::api_key(store, id).map(|k| (id.to_string(), ApiKey(k))))
             .collect();
-        let fx_from = if base != "TRY" {
+        let tax_rates = store.setting(TAX_RATES_KEY)?.as_deref() == Some("true");
+        let fx_from = if base != "TRY" || tax_rates {
             first_any
         } else {
             first_foreign

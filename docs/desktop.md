@@ -69,8 +69,9 @@ providers enabled in Settings: `www.tefas.gov.tr`, `www.tcmb.gov.tr`, and for
 assets you assigned to them, `query1.finance.yahoo.com` and
 `api.twelvedata.com`. For real returns it asks only the inflation provider of
 your base currency, at most once a day: `ec.europa.eu` (TRY, EUR),
-`api.bls.gov` (USD) or `www.ons.gov.uk` (GBP). See
-[market-data.md](market-data.md).
+`api.bls.gov` (USD) or `www.ons.gov.uk` (GBP). Once you save an EVDS key, it
+also asks `evds3.tcmb.gov.tr` for the Turkish producer price index, at most once
+a day. Tax reports never use the network. See [market-data.md](market-data.md).
 
 ## Where your data lives
 
@@ -131,11 +132,13 @@ the screen says what is missing instead of showing a number.
 | Performance | Time- and money-weighted returns (portfolio and per account) for 1M, 3M, YTD, 1Y and since start, benchmark return and growth chart, net contributions; a Nominal / Real switch for inflation-adjusted figures; estimates and missing exchange rates are labelled (see [returns.md](returns.md)) | |
 | Imports | Statement files through adapters, column mapper, full review, commit, history and undo | AI-assisted column mapper |
 | Assets | Price source per asset from a provider menu (TEFAS, Yahoo Finance, Twelve Data, manual), TEFAS and Yahoo suggestions, manual prices, merging duplicates | |
-| Settings | Base currency and the inflation index used for real returns, market data providers (on/off, Twelve Data API key), refresh on start, last refresh report, price history download state and cache location | |
+| Tax | UK, US and Turkish working papers for a tax year: realized gains with each country's matching rules, dividends and interest with tax withheld, rows that could not be computed and why, account tax treatment (taxable, ISA, pension) and CSV export (see [tax.md](tax.md)) | |
+| Settings | Base currency and the inflation index used for real returns, market data providers (on/off, Twelve Data and EVDS API keys), refresh on start, last refresh report, price history download state and cache location | |
 | Activity, Income, Accounts | Placeholder | Later changes |
 
 Prices come from the built-in TEFAS, Yahoo Finance, Twelve Data and TCMB
-providers or from manual entry, and inflation indices from Eurostat, BLS and ONS; see
+providers or from manual entry, inflation indices from Eurostat, BLS and ONS,
+and the Turkish producer price index from EVDS; see
 [market-data.md](market-data.md) for what is sent where, and how values are computed.
 
 Average cost is provisional: acquisitions add the cash they settled for,

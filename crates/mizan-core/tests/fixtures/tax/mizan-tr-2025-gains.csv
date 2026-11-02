@@ -1,0 +1,4 @@
+section,description,isin,account,quantity,date_acquired,date_sold,cost,indexed_cost,proceeds,gain,reason,notes
+declared,Apple Inc. (AAPL),US0378331005,IB1,10,2023-03-01,2025-06-10,28350.00,51030.00,85800.00,34770.00,,
+declared,"iShares Core MSCI World, Acc (IWDA)",IE00B4L5Y983,IB1,5,2025-01-06,2025-06-10,17700.00,,17550.00,-150.00,,not indexed: Yİ-ÜFE not available
+taxed_at_source,AFT,,IB1,1000,2024-02-01,2025-02-03,1000.00,,1400.00,400.00,,not indexed: Yİ-ÜFE not available

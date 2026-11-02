@@ -20,6 +20,12 @@ import type { Period } from "./generated/Period";
 import type { ValueHistory } from "./generated/ValueHistory";
 import type { RefreshReport } from "./generated/RefreshReport";
 import type { SettingsView } from "./generated/SettingsView";
+import type { Country } from "./generated/Country";
+import type { TaxExport } from "./generated/TaxExport";
+import type { TaxReport } from "./generated/TaxReport";
+import type { TaxYears } from "./generated/TaxYears";
+
+export type TaxTreatment = "taxable" | "isa" | "pension";
 
 export type PriceSourceKind = "tefas" | "yahoo" | "twelvedata" | "manual" | "none";
 
@@ -57,6 +63,13 @@ export const api = {
   performance: (period: Period) => invoke<PerformanceView>("cmd_performance", { period }),
   valueHistory: () => invoke<ValueHistory>("cmd_value_history"),
   setBenchmark: (assetId: number | null) => invoke<void>("cmd_set_benchmark", { asset_id: assetId }),
+  // Tax reports: computed from stored data only.
+  taxYears: (country: Country) => invoke<TaxYears>("cmd_tax_years", { country }),
+  taxReport: (country: Country, year: string) => invoke<TaxReport>("cmd_tax_report", { country, year }),
+  setTaxTreatment: (accountId: number, treatment: TaxTreatment) =>
+    invoke<void>("cmd_set_tax_treatment", { account_id: accountId, treatment }),
+  /** Write the gains and income CSV files into `dir`. */
+  exportTaxCsv: (country: Country, year: string, dir: string) => invoke<TaxExport>("cmd_export_tax_csv", { country, year, dir }),
   // Column mapper. `mapping` is the mapping file's TOML document as JSON.
   mapperInspect: (path: string, options: MapperOptions | null) => invoke<MapperInspect>("cmd_mapper_inspect", { path, options }),
   mapperPreview: (path: string, mapping: object) => invoke<MapperPreview>("cmd_mapper_preview", { path, mapping }),

@@ -16,9 +16,11 @@ other time.
 | **Eurostat** | Monthly consumer price indices for TRY (HICP Türkiye) and EUR (euro-area HICP) | Only when the base currency is TRY or EUR: one request for that series, at most once a day |
 | **BLS** | Monthly US consumer price index (USD) from the US Bureau of Labor Statistics | Only when the base currency is USD: one request per 10 years of missing history, at most once a day |
 | **ONS** | Monthly UK consumer price index (GBP) from the UK Office for National Statistics | Only when the base currency is GBP: one request, at most once a day |
+| **EVDS** | Monthly Turkish domestic producer price index (Yİ-ÜFE) from the TCMB, with your free API key | Only once a key is saved: one request for the missing months, at most once a day, with the key in a request header |
 
-All seven are enabled by default; the inflation providers are described under
-[Inflation indices](#inflation-indices).
+All eight are enabled by default; the inflation providers are described under
+[Inflation indices](#inflation-indices), and EVDS under
+[Producer price index for Turkish tax reports](#producer-price-index-for-turkish-tax-reports).
  Yahoo Finance and Twelve Data are only asked
 for the symbols you assign to them on the Assets screen, so they make no
 requests until you do; Twelve Data also waits until you save a key. In
@@ -207,7 +209,24 @@ Settings and Performance always label it "HICP Türkiye".
 How monthly values become a daily index is described in
 [returns.md](returns.md#real-returns).
 
-## Manual prices
+## Producer price index for Turkish tax reports
+
+Turkish tax reports raise the cost of a foreign security by the domestic
+producer price index (Yİ-ÜFE) when it rose 10% or more between the month
+before the purchase and the month before the sale (see [tax.md](tax.md)).
+The index comes from the TCMB's EVDS service, which needs a free API key
+(register at `evds3.tcmb.gov.tr`). Enter it in **Settings › Market data
+providers › EVDS**.
+
+- **No key, no request.** The refresh lists EVDS as "needs an API key", and
+  Turkish reports show unindexed costs with a note on each row.
+- **The key stays in the user database.** It is sent only in the `key`
+  request header, never in a URL, and is never written to the history cache,
+  logs or refresh reports. Settings shows it masked.
+- **Caching and timing** follow the inflation indices: from the month before
+  your first activity, cached by month in the history cache, re-reading the
+  last three months, at most once a day.
+
 
 **Add price** records a price for a date and currency. If a TEFAS price exists
 for the same asset and date, the manual price is used; the TEFAS row stays
@@ -382,6 +401,24 @@ source, now answers with a browser check and is not used.
 Recorded responses are in `crates/mizan-market/tests/fixtures/eurostat/`,
 `bls/` and `ons/`.
 
+## EVDS API notes (checked 2026-11-02)
+
+- `GET https://evds3.tcmb.gov.tr/igmevdsms-dis/series=TP.TUFE1YI.T1&startDate=DD-MM-YYYY&endDate=DD-MM-YYYY&type=json`.
+  Parameters are written after the slash, without a `?`.
+- The key goes in the `key` request header. Since 5 April 2024 a key in the
+  URL is not accepted; without the header the service answers
+  `403 {"status":"403","message":"Required request header 'key' is not present"}`
+  (checked live). The older `evds2.tcmb.gov.tr/service/evds` endpoint now
+  redirects.
+- `TP.TUFE1YI.T1` is the Yİ-ÜFE series (2003=100), monthly.
+- Responses list `items[]` with `Tarih` as `YYYY-M` and the value under the
+  series code with dots replaced by underscores (`TP_TUFE1YI_T1`); months not
+  yet published are `null`.
+- The series code and the response shape come from the EVDS usage guide and
+  public client libraries, and were confirmed in the app with a key on
+  2026-11-02 (Turkish tax rows showed indexed costs). The live test, run with
+  `MIZAN_EVDS_KEY` set, checks them again.
+
 ## Tests
 
 CI uses recorded fixtures only. Live checks are ignored by default:
@@ -389,3 +426,5 @@ CI uses recorded fixtures only. Live checks are ignored by default:
 ```sh
 cargo test -p mizan-market --test live -- --ignored
 ```
+
+The EVDS check runs only when `MIZAN_EVDS_KEY` holds your key, and is skipped otherwise.

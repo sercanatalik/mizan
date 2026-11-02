@@ -39,7 +39,7 @@ fn migration_0002_applies_on_a_database_created_before_it() {
             .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.schema_version().unwrap(), 3);
+    assert_eq!(s.schema_version().unwrap(), 4);
     assert_eq!(s.count("accounts").unwrap(), 1, "existing data kept");
     assert_eq!(s.setting("base_currency").unwrap().as_deref(), Some("TRY"));
     assert_eq!(
@@ -279,7 +279,7 @@ fn migration_0003_keeps_existing_price_sources() {
         .unwrap();
     }
     let mut s = Store::open(&path).unwrap();
-    assert_eq!(s.schema_version().unwrap(), 3);
+    assert_eq!(s.schema_version().unwrap(), 4);
     assert_eq!(
         s.price_source(1).unwrap(),
         Some(PriceSourceKind::Tefas {

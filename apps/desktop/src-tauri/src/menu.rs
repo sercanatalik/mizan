@@ -3,13 +3,15 @@
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{App, AppHandle, Emitter, Runtime};
 
-/// Sidebar sections in order; View › item n gets Cmd/Ctrl+n.
-pub const SECTIONS: [(&str, &str); 9] = [
+/// Sidebar sections in order; View › item n gets Cmd/Ctrl+n for the first
+/// nine, and Settings gets the platform's usual Cmd/Ctrl+comma.
+pub const SECTIONS: [(&str, &str); 10] = [
     ("overview", "Overview"),
     ("holdings", "Holdings"),
     ("activity", "Activity"),
     ("performance", "Performance"),
     ("income", "Income"),
+    ("tax", "Tax"),
     ("imports", "Imports"),
     ("accounts", "Accounts"),
     ("assets", "Assets"),
@@ -53,8 +55,13 @@ pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
 
     let mut view = SubmenuBuilder::new(app, "View");
     for (i, (id, label)) in SECTIONS.iter().enumerate() {
+        let key = if *id == "settings" {
+            ",".to_string()
+        } else {
+            (i + 1).to_string()
+        };
         let item = MenuItemBuilder::with_id(format!("nav:{id}"), *label)
-            .accelerator(format!("CmdOrCtrl+{}", i + 1))
+            .accelerator(format!("CmdOrCtrl+{key}"))
             .build(app)?;
         view = view.item(&item);
     }

@@ -100,7 +100,8 @@ fn registry_lists_built_in_providers_enabled_by_default() {
             "twelvedata",
             "eurostat",
             "bls",
-            "ons"
+            "ons",
+            "evds"
         ]
     );
     let mut s = Store::open_in_memory().unwrap();

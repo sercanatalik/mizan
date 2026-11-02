@@ -38,6 +38,8 @@ export const EMPTY = {
   cmd_accounts: [],
   cmd_assets: [],
   cmd_value_history: { base_currency: "TRY", points: [], valued_days: 0 },
+  cmd_tax_years: { country: "uk", years: [], default: null, current: "2026-27" },
+  cmd_tax_report: null,
   cmd_backfill_status: {
     cache_path: "/Users/a/.mizan/market-history.sqlite",
     sources: [
@@ -76,6 +78,15 @@ export const EMPTY = {
       { id: "eurostat", name: "Eurostat", supplies: "Inflation indices for TRY (HICP Türkiye) and EUR (euro-area HICP)", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
       { id: "bls", name: "BLS", supplies: "US consumer price index (USD inflation) from the Bureau of Labor Statistics", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
       { id: "ons", name: "ONS", supplies: "UK consumer price index (GBP inflation) from the Office for National Statistics", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
+      {
+        id: "evds",
+        name: "EVDS",
+        supplies: "Turkish producer price index (Yİ-ÜFE) from the TCMB, for indexing costs in Turkish tax reports; needs your free API key",
+        enabled: true,
+        last_success: null,
+        needs_api_key: true,
+        api_key_hint: null,
+      },
     ],
     last_report: null,
     refreshing: false,

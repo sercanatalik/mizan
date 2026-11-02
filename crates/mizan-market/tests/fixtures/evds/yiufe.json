@@ -1,0 +1,9 @@
+{"totalCount":7,"items":[
+{"Tarih":"2025-2","TP_TUFE1YI_T1":"3712.59","UNIXTIME":{"$numberLong":"1738357200"}},
+{"Tarih":"2025-3","TP_TUFE1YI_T1":"3803.88","UNIXTIME":{"$numberLong":"1740776400"}},
+{"Tarih":"2025-4","TP_TUFE1YI_T1":"3912.44","UNIXTIME":{"$numberLong":"1743454800"}},
+{"Tarih":"2025-5","TP_TUFE1YI_T1":"3994.17","UNIXTIME":{"$numberLong":"1746046800"}},
+{"Tarih":"2025-6","TP_TUFE1YI_T1":"4049.36","UNIXTIME":{"$numberLong":"1748725200"}},
+{"Tarih":"2025-7","TP_TUFE1YI_T1":"4129.91","UNIXTIME":{"$numberLong":"1751317200"}},
+{"Tarih":"2025-8","TP_TUFE1YI_T1":null,"UNIXTIME":{"$numberLong":"1753995600"}}
+]}

@@ -42,6 +42,7 @@ fn committed_desktop_bindings_match_generated() {
     crate::market::ProviderView::export_all(&cfg).unwrap();
     crate::returns::PerformanceView::export_all(&cfg).unwrap();
     crate::returns::BenchmarkOption::export_all(&cfg).unwrap();
+    crate::tax::TaxExport::export_all(&cfg).unwrap();
     mizan_core::assets::AssetView::export_all(&cfg).unwrap();
     mizan_market::RefreshReport::export_all(&cfg).unwrap();
     mizan_market::backfill::BackfillProgress::export_all(&cfg).unwrap();

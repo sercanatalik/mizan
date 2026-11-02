@@ -112,7 +112,7 @@ mod tests {
         {
             let mut store = open_store(&dir).unwrap();
             assert!(db_path(&dir).exists());
-            assert_eq!(store.schema_version().unwrap(), 3);
+            assert_eq!(store.schema_version().unwrap(), 4);
             store.create_account("IBKR", "U1").unwrap();
         }
         let store = open_store(&dir).unwrap();
