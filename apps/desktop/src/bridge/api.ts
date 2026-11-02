@@ -8,6 +8,11 @@ import type { Contributions } from "./generated/Contributions";
 import type { Decision } from "./generated/Decision";
 import type { Holdings } from "./generated/Holdings";
 import type { ImportView } from "./generated/ImportView";
+import type { MapperInspect } from "./generated/MapperInspect";
+import type { MapperOptions } from "./generated/MapperOptions";
+import type { MapperPreview } from "./generated/MapperPreview";
+import type { OpenResult } from "./generated/OpenResult";
+import type { SavedMapping } from "./generated/SavedMapping";
 import type { Overview } from "./generated/Overview";
 import type { RefreshReport } from "./generated/RefreshReport";
 import type { SettingsView } from "./generated/SettingsView";
@@ -16,7 +21,7 @@ export type PriceSourceKind = "tefas" | "manual" | "none";
 
 /** Errors from the Rust side arrive as `{ kind, message }`. */
 export interface AppError {
-  kind: "io" | "batch" | "storage" | "commit" | "invalid";
+  kind: "io" | "batch" | "storage" | "commit" | "invalid" | "adapter";
   message: string;
 }
 
@@ -26,7 +31,8 @@ export function errorMessage(e: unknown): string {
 }
 
 export const api = {
-  importOpen: (path: string) => invoke<ImportView>("cmd_import_open", { path }),
+  importOpen: (path: string) => invoke<OpenResult>("cmd_import_open", { path }),
+  importChooseAdapter: (id: string) => invoke<ImportView>("cmd_import_choose_adapter", { id }),
   importCurrent: () => invoke<ImportView | null>("cmd_import_current"),
   importDecide: (index: number, decision: Decision | null) =>
     invoke<ImportView>("cmd_import_decide", { index, decision }),
@@ -43,6 +49,11 @@ export const api = {
   overview: () => invoke<Overview>("cmd_overview"),
   contributions: () => invoke<Contributions>("cmd_contributions"),
   accounts: () => invoke<AccountView[]>("cmd_accounts"),
+  // Column mapper. `mapping` is the mapping file's TOML document as JSON.
+  mapperInspect: (path: string, options: MapperOptions | null) => invoke<MapperInspect>("cmd_mapper_inspect", { path, options }),
+  mapperPreview: (path: string, mapping: object) => invoke<MapperPreview>("cmd_mapper_preview", { path, mapping }),
+  mapperSave: (mapping: object) => invoke<SavedMapping>("cmd_mapper_save", { mapping }),
+  mapperExport: (id: string, dest: string) => invoke<void>("cmd_mapper_export", { id, dest }),
   // Market data
   refreshPrices: () => invoke<RefreshReport>("cmd_refresh_prices"),
   settings: () => invoke<SettingsView>("cmd_settings"),

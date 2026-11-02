@@ -9,6 +9,7 @@ import type { ImportView } from "../bridge/generated/ImportView";
 import type { ReviewItem } from "../bridge/generated/ReviewItem";
 import {
   useAccounts,
+  useImportChooseAdapter,
   useImportClose,
   useImportCommit,
   useImportDecide,
@@ -19,40 +20,106 @@ import {
   useResolveHint,
 } from "../bridge/queries";
 import { Badge, Button, Card, DataTable, EmptyState, Segmented, type Tone } from "../ui";
+import { ColumnMapper } from "./imports/ColumnMapper";
 import { buildRows, counts, matches, type Filter, type RecordRow, type Row } from "./imports/model";
 import s from "./imports/imports.module.css";
 
 const short = (sha: string | null | undefined) => (sha ? `${sha.slice(0, 4)}…${sha.slice(-4)}` : "—");
 
+/** "ibkr-flex 1.0.0", or "batch file" when no adapter was involved. */
+export const adapterLabel = (view: ImportView) => (view.source.adapter ? `${view.source.adapter.id} ${view.source.adapter.version}` : "batch file");
+
 // ------------------------------------------------------------------ picker
 
+const STATEMENT_TYPES = ["csv", "xlsx", "pdf", "ofx", "qfx", "xml", "json"];
+
+interface Unrecognized {
+  path: string;
+  fileName: string;
+  fileKind: string;
+}
+
 function usePicker() {
-  const openBatch = useImportOpen();
+  const openFile = useImportOpen();
   const [error, setError] = useState<string | null>(null);
+  const [unrecognized, setUnrecognized] = useState<Unrecognized | null>(null);
+  const openPath = async (path: string) => {
+    setError(null);
+    try {
+      const r = await openFile.mutateAsync(path);
+      setUnrecognized(r.type === "unrecognized" ? { path, fileName: r.file_name, fileKind: r.file_kind } : null);
+      return r.type === "review";
+    } catch (e) {
+      setError(errorMessage(e));
+      return false;
+    }
+  };
   const pick = async () => {
     setError(null);
     try {
-      const path = await open({ multiple: false, directory: false, filters: [{ name: "Mizan batch", extensions: ["json"] }] });
+      const path = await open({ multiple: false, directory: false, filters: [{ name: "Statements and Mizan batches", extensions: STATEMENT_TYPES }] });
       if (typeof path !== "string") return;
-      await openBatch.mutateAsync(path);
+      await openPath(path);
     } catch (e) {
       setError(errorMessage(e));
     }
   };
-  return { pick, error, busy: openBatch.isPending };
+  return { pick, openPath, error, busy: openFile.isPending, unrecognized, clearUnrecognized: () => setUnrecognized(null) };
+}
+
+function UnrecognizedCard({ file, onMap }: { file: Unrecognized; onMap: () => void }) {
+  const mappable = file.fileKind === "csv" || file.fileKind === "xlsx";
+  return (
+    <section aria-label="Not recognized">
+      <Card title="Not recognized">
+        <div className={s.unrecognized}>
+          <span>
+            <strong>{file.fileName}</strong> is not recognized by any adapter.{" "}
+            {mappable
+              ? "Map its columns once and Mizan will recognize files like it from then on."
+              : "No adapter reads this file yet; docs/adapters.md explains how to add one."}
+          </span>
+          {mappable && (
+            <Button variant="primary" onClick={onMap}>
+              Open column mapper
+            </Button>
+          )}
+        </div>
+      </Card>
+    </section>
+  );
 }
 
 // ------------------------------------------------------------------ review parts
 
 function SourceCard({ view }: { view: ImportView }) {
   const src = view.source;
+  const choose = useImportChooseAdapter();
   const period = src.first_date ? (src.first_date === src.last_date ? src.first_date : `${src.first_date} – ${src.last_date}`) : "—";
   return (
     <Card label="Batch source">
       <div className={s.sourceGrid}>
         <div className={s.field}>
           <span className={s.fieldLabel}>Adapter</span>
-          <span className={s.fieldValue}>{src.adapters.join(", ") || "—"}</span>
+          <span className={s.fieldValue} data-testid="adapter">
+            {adapterLabel(view)}
+          </span>
+          {src.matches.length > 1 && (
+            <>
+              <label className="visually-hidden" htmlFor="read-with">
+                Read with
+              </label>
+              <select id="read-with" className={s.select} value={src.adapter?.id ?? ""} disabled={choose.isPending} onChange={(e) => choose.mutate(e.target.value)}>
+                {src.matches.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.id} {m.version}){m.user ? " · yours" : ""}
+                  </option>
+                ))}
+              </select>
+              <span className={s.note}>Other adapters also read this file. Switching re-reads it and clears your decisions.</span>
+              {choose.error && <span className={s.noteWarn}>{errorMessage(choose.error)}</span>}
+            </>
+          )}
         </div>
         <div className={s.field}>
           <span className={s.fieldLabel}>Account</span>
@@ -474,12 +541,13 @@ function History() {
 
 export function Imports() {
   const session = useImportSession().data;
-  const { pick, error, busy } = usePicker();
+  const { pick, openPath, error, busy, unrecognized, clearUnrecognized } = usePicker();
+  const [mapping, setMapping] = useState<Unrecognized | null>(null);
   const location = useLocation();
   const pickToken = (location.state as PickRequest | null)?.pick;
   const handled = useRef<number | undefined>(undefined);
 
-  // The native menu's "Import batch…" navigates here with a pick request.
+  // The native menu's "Import file…" navigates here with a pick request.
   useEffect(() => {
     if (pickToken && handled.current !== pickToken) {
       handled.current = pickToken;
@@ -487,14 +555,33 @@ export function Imports() {
     }
   }, [pickToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (mapping) {
+    return (
+      <>
+        <PageHeader title="Imports" subtitle={`Column mapper · ${mapping.fileName}`} />
+        <ColumnMapper
+          path={mapping.path}
+          onClose={() => setMapping(null)}
+          onOpenReview={() => {
+            void openPath(mapping.path).then((ok) => ok && setMapping(null));
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader
         title="Imports"
-        subtitle={session ? `Review · ${session.file_name}` : "Open a mizan.import/1 batch file to review it before anything is saved."}
+        subtitle={
+          session
+            ? `Review · ${session.file_name} · ${adapterLabel(session)}`
+            : "Open a statement (CSV, XLSX, PDF, OFX/QFX, XML) or a mizan.import/1 batch to review it before anything is saved."
+        }
         actions={
           <Button variant={session ? "secondary" : "primary"} onClick={() => void pick()} disabled={busy}>
-            {session ? "Open another batch" : "Open batch file"}
+            {session ? "Open another file" : "Open file"}
           </Button>
         }
       />
@@ -503,12 +590,21 @@ export function Imports() {
           {error}
         </div>
       )}
+      {unrecognized && (
+        <UnrecognizedCard
+          file={unrecognized}
+          onMap={() => {
+            setMapping(unrecognized);
+            clearUnrecognized();
+          }}
+        />
+      )}
       {session ? (
         <Review view={session} />
       ) : (
         <EmptyState
           title="No import in review"
-          message="Statement files (CSV, PDF) need an adapter. Until adapters are available, open a mizan.import/1 batch file."
+          message="Mizan reads OFX/QFX, IBKR Flex and Anadolu Hayat Emeklilik statements, CSV and XLSX files you map once, and mizan.import/1 batches."
         />
       )}
       <History />

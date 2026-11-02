@@ -1,0 +1,394 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {
+      "external_id": "5001",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "buy",
+      "date": "2026-10-02",
+      "quantity": "20",
+      "settle_date": "2026-10-06",
+      "instrument": {
+        "isin": "US0000000AA1",
+        "cusip": "000000AA1",
+        "symbol": "EXMP",
+        "name": "EXAMPLE CORP",
+        "currency": "USD",
+        "class_hint": "equity"
+      },
+      "price": {
+        "amount": "150.25",
+        "currency": "USD"
+      },
+      "charges": [
+        {
+          "type": "commission",
+          "amount": {
+            "amount": "1",
+            "currency": "USD"
+          }
+        }
+      ],
+      "net_cash": {
+        "amount": "3006",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "Trade 5001"
+      }
+    },
+    {
+      "external_id": "5002",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "buy",
+      "date": "2026-10-05",
+      "quantity": "15",
+      "settle_date": "2026-10-07",
+      "instrument": {
+        "isin": "IE0000000BB2",
+        "symbol": "SMPLE",
+        "name": "SAMPLE WORLD UCITS ETF",
+        "currency": "EUR",
+        "class_hint": "etf"
+      },
+      "price": {
+        "amount": "98.4",
+        "currency": "EUR"
+      },
+      "charges": [
+        {
+          "type": "commission",
+          "amount": {
+            "amount": "1.25",
+            "currency": "EUR"
+          }
+        }
+      ],
+      "net_cash": {
+        "amount": "1477.25",
+        "currency": "EUR"
+      },
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "Trade 5002"
+      }
+    },
+    {
+      "external_id": "5003",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "short_sell",
+      "date": "2026-10-08",
+      "quantity": "8",
+      "settle_date": "2026-10-10",
+      "instrument": {
+        "isin": "US0000000CC3",
+        "symbol": "SHRT",
+        "name": "SHORT TARGET INC",
+        "currency": "USD",
+        "class_hint": "equity"
+      },
+      "price": {
+        "amount": "50",
+        "currency": "USD"
+      },
+      "charges": [
+        {
+          "type": "commission",
+          "amount": {
+            "amount": "1",
+            "currency": "USD"
+          }
+        }
+      ],
+      "net_cash": {
+        "amount": "399",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "Trade 5003"
+      }
+    },
+    {
+      "external_id": "5004",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "buy_to_cover",
+      "date": "2026-10-22",
+      "quantity": "8",
+      "settle_date": "2026-10-24",
+      "instrument": {
+        "isin": "US0000000CC3",
+        "symbol": "SHRT",
+        "name": "SHORT TARGET INC",
+        "currency": "USD",
+        "class_hint": "equity"
+      },
+      "price": {
+        "amount": "45",
+        "currency": "USD"
+      },
+      "charges": [
+        {
+          "type": "commission",
+          "amount": {
+            "amount": "1",
+            "currency": "USD"
+          }
+        }
+      ],
+      "net_cash": {
+        "amount": "361",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "Trade 5004"
+      }
+    },
+    {
+      "external_id": "5005",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "sell",
+      "date": "2026-10-27",
+      "quantity": "5",
+      "settle_date": "2026-10-29",
+      "instrument": {
+        "isin": "US0000000AA1",
+        "cusip": "000000AA1",
+        "symbol": "EXMP",
+        "name": "EXAMPLE CORP",
+        "currency": "USD",
+        "class_hint": "equity"
+      },
+      "price": {
+        "amount": "158",
+        "currency": "USD"
+      },
+      "charges": [
+        {
+          "type": "commission",
+          "amount": {
+            "amount": "1",
+            "currency": "USD"
+          }
+        }
+      ],
+      "net_cash": {
+        "amount": "789",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "Trade 5005"
+      }
+    },
+    {
+      "external_id": "7001",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "deposit",
+      "date": "2026-10-01",
+      "net_cash": {
+        "amount": "5000",
+        "currency": "USD"
+      },
+      "memo": "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS",
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "CashTransaction 7001"
+      }
+    },
+    {
+      "external_id": "7002",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "deposit",
+      "date": "2026-10-01",
+      "net_cash": {
+        "amount": "2000",
+        "currency": "EUR"
+      },
+      "memo": "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS",
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "CashTransaction 7002"
+      }
+    },
+    {
+      "external_id": "7003",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "dividend",
+      "date": "2026-10-15",
+      "net_cash": {
+        "amount": "20.4",
+        "currency": "USD"
+      },
+      "memo": "EXMP(US0000000AA1) CASH DIVIDEND USD 1.20 PER SHARE",
+      "instrument": {
+        "isin": "US0000000AA1",
+        "symbol": "EXMP",
+        "name": "EXMP(US0000000AA1) CASH DIVIDEND USD 1.20 PER SHARE",
+        "currency": "USD"
+      },
+      "gross": {
+        "amount": "24",
+        "currency": "USD"
+      },
+      "charges": [
+        {
+          "type": "withholding_tax",
+          "amount": {
+            "amount": "3.6",
+            "currency": "USD"
+          }
+        }
+      ],
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "CashTransaction 7003"
+      }
+    },
+    {
+      "external_id": "7005",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "interest",
+      "date": "2026-10-03",
+      "net_cash": {
+        "amount": "1.12",
+        "currency": "USD"
+      },
+      "memo": "USD CREDIT INT FOR SEP-2026",
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "CashTransaction 7005"
+      }
+    },
+    {
+      "external_id": "7006",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "fee",
+      "date": "2026-10-03",
+      "net_cash": {
+        "amount": "3",
+        "currency": "USD"
+      },
+      "memo": "BALANCE OF MONTHLY MINIMUM FEE FOR SEP 2026",
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "CashTransaction 7006"
+      }
+    },
+    {
+      "external_id": "7007",
+      "account": {
+        "hint": "U0000001"
+      },
+      "kind": "withdrawal",
+      "date": "2026-10-30",
+      "net_cash": {
+        "amount": "500",
+        "currency": "USD"
+      },
+      "memo": "DISBURSEMENT INITIATED BY SAMPLE ACCOUNT",
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "CashTransaction 7007"
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "cash": [
+        {
+          "amount": "522.75",
+          "currency": "EUR"
+        },
+        {
+          "amount": "2339.52",
+          "currency": "USD"
+        }
+      ],
+      "account": {
+        "hint": "U0000001"
+      },
+      "as_of": "2026-10-31",
+      "positions": [
+        {
+          "instrument": {
+            "isin": "US0000000AA1",
+            "cusip": "000000AA1",
+            "symbol": "EXMP",
+            "name": "EXAMPLE CORP",
+            "currency": "USD",
+            "class_hint": "equity"
+          },
+          "quantity": "15"
+        },
+        {
+          "instrument": {
+            "isin": "IE0000000BB2",
+            "symbol": "SMPLE",
+            "name": "SAMPLE WORLD UCITS ETF",
+            "currency": "EUR",
+            "class_hint": "etf"
+          },
+          "quantity": "15"
+        }
+      ],
+      "source": {
+        "adapter": "ibkr-flex",
+        "adapter_version": "0.1.0",
+        "file_sha256": "1835e042bac1f273985eef9ba5111d892cfae188179480f3cece61a32f9c24b5",
+        "locator": "OpenPositions 2026-10-31"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "message": "CorporateActions rows are not imported yet",
+      "locator": "CorporateActions row 1"
+    }
+  ]
+}

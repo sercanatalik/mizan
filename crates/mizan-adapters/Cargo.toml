@@ -1,0 +1,35 @@
+[package]
+name = "mizan-adapters"
+description = "Import adapters for Mizan: mapping files, sandboxed scripts and native formats"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mizan-import.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+rust_decimal.workspace = true
+sha2.workspace = true
+hex.workspace = true
+toml = "0.9"
+regex = "1"
+quick-xml = "0.38"
+csv = "1"
+encoding_rs = "0.8"
+calamine = "0.37"
+pdf-extract = "0.12"
+oxc_allocator = "=0.156.0"
+oxc_parser = "=0.156.0"
+oxc_span = "=0.156.0"
+oxc_semantic = "=0.156.0"
+oxc_transformer = "=0.156.0"
+oxc_codegen = "=0.156.0"
+oxc_diagnostics = "=0.156.0"
+rquickjs = { version = "0.14", features = ["loader"] }
+
+[dev-dependencies]
+mizan-core.workspace = true

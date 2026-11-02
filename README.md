@@ -8,9 +8,9 @@ through community-maintained adapters, not a paid sync service. Every import is
 reviewed before anything is saved, checked against the balances printed on the
 statement, and can be undone.
 
-> **Status: early development.** Imports, the desktop app and market data
-> (TEFAS fund prices, TCMB exchange rates) work today. Returns and adapters for
-> raw statement files come next.
+> **Status: early development.** Imports from statement files, the desktop app
+> and market data (TEFAS fund prices, TCMB exchange rates) work today. Returns
+> come next.
 
 ## What works today
 
@@ -18,7 +18,8 @@ statement, and can be undone.
 |---|---|
 | **Import pipeline** | `mizan.import/1` schema and validation, duplicate detection across overlapping statements, figure consistency checks, balance checks against statement closing balances, review report, all-or-nothing commit, undo |
 | **Desktop app** | Tauri app with sidebar navigation and native menu; local SQLite database |
-| **Imports screen** | Open a batch, review it, map accounts and create assets, decide on possible duplicates, commit, browse history, undo an import |
+| **Adapters** | OFX/QFX bank and investment statements, Interactive Brokers Flex Query XML, Anadolu Hayat Emeklilik pension fund history (XLSX); any CSV or XLSX through the in-app column mapper, saved as a reusable mapping; sandboxed TypeScript scripts for irregular formats |
+| **Imports screen** | Open a statement or batch, see which adapter read it and switch to another match, review, map accounts and create assets, decide on possible duplicates, commit, browse history, undo an import |
 | **Holdings** | Positions and cash per account with price, value, weight and unrealized gain; provisional average cost; flags for unknown cost basis and failed balance checks |
 | **Overview** | Portfolio and account totals in your base currency, latest balance checks, a "needs attention" list |
 | **Performance** | Net contributions per account and period |
@@ -27,9 +28,8 @@ statement, and can be undone.
 | **CLI** | `mizan-cli import validate` and `mizan-cli import preview` |
 
 Not yet: time- and money-weighted returns, the value-over-time chart, prices
-for listed stocks and ETFs (use manual prices for now), and adapters for raw
-statements (CSV, PDF, OFX, IBKR Flex). Until adapters exist,
-imports take `mizan.import/1` batch files. Every screen shows real data only;
+for listed stocks and ETFs (use manual prices for now), and the AI-assisted
+column mapper. Every screen shows real data only;
 where something can't be computed yet, it says what is missing instead of
 showing a number.
 
@@ -63,7 +63,9 @@ statement file --> adapter --> mizan.import/1 batch --> review --> commit
 - **Nothing is final.** Every import can be undone as a whole.
 
 The schema is documented in [docs/import-schema.md](docs/import-schema.md) and
-published as JSON Schema in [`schema/`](schema/).
+published as JSON Schema in [`schema/`](schema/). Writing an adapter (a
+mapping file, a script or native code) is covered in
+[docs/adapters.md](docs/adapters.md).
 
 ## Getting started
 
@@ -80,7 +82,9 @@ cargo tauri dev                  # run with hot reload
 cargo tauri build --bundles app  # release app bundle under target/release/bundle/
 ```
 
-To try it, open **Imports** and load the example batches in
+To try it, open **Imports** and load a sample statement from
+`adapters/*/fixtures/` (for example
+`adapters/ibkr-flex/fixtures/monthly/input.xml`), or the example batches in
 `crates/mizan-core/tests/data/e2e/` (`seed.json`, then `batch.json`).
 
 Your data is one SQLite file in the app data folder. See
@@ -110,17 +114,17 @@ crates/mizan-import    mizan.import/1 schema, validation, JSON Schema
 crates/mizan-storage   SQLite store and migrations
 crates/mizan-core      import pipeline, balance replay, read models, fixture harness
 crates/mizan-market    market data providers (TEFAS, TCMB) and refresh
+crates/mizan-adapters  adapter runtime: detection, mapping engine, script sandbox, OFX and IBKR Flex
+adapters/              bundled adapters with their fixtures, and the script API types
 crates/mizan-cli       command-line tools
 apps/desktop           React + TypeScript frontend
 apps/desktop/src-tauri Tauri host: commands, menu, database location
-docs/                  schema and desktop documentation
+docs/                  schema, adapter, market data and desktop documentation
 ```
 
 ## Roadmap
 
-1. Adapter runtime: mapping files, sandboxed TypeScript scripts, built-in
-   formats (OFX, QIF, IBKR Flex), and an AI-assisted column mapper that writes
-   mapping files
+1. AI-assisted column mapper that writes mapping files; more bundled adapters
 2. Returns engine: time- and money-weighted returns, benchmarks, price history
 3. More price providers (listed stocks and ETFs)
 4. Tax lots and realized gains
@@ -129,7 +133,8 @@ docs/                  schema and desktop documentation
 
 Contributions are welcome, especially broker adapters. Read
 [CONTRIBUTING.md](CONTRIBUTING.md) first: it explains the clean-room rule and
-how adapter fixtures work.
+how adapter fixtures work, and [docs/adapters.md](docs/adapters.md) for how to
+write one.
 
 ## License
 

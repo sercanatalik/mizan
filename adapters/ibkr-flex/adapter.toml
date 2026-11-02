@@ -1,0 +1,13 @@
+# Interactive Brokers Flex Query XML. Create an Activity Flex Query in Client
+# Portal (Performance & Reports → Flex Queries) with the Trades,
+# Cash Transactions, Open Positions and Cash Report sections, XML format.
+# Rows of other sections are listed as notes in the review.
+
+[adapter]
+id = "ibkr-flex"
+version = "0.1.0"
+name = "Interactive Brokers Flex Query"
+type = "native"
+native = "ibkr-flex"
+files = ["xml"]
+description = "Trades, cash transactions, open positions and ending cash"

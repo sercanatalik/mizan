@@ -10,7 +10,7 @@ use mizan_storage::AccountId;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-use crate::session::{AppError, CommitView, ImportSession, ImportView};
+use crate::session::{AppError, CommitView, ImportSession, ImportView, OpenResult, Opened};
 use crate::state::AppState;
 
 /// One committed import in the history list.
@@ -39,18 +39,42 @@ pub struct AccountView {
     pub hints: Vec<String>,
 }
 
-fn store_err<T>(_: T) -> AppError {
+pub(crate) fn store_err<T>(_: T) -> AppError {
     AppError::Invalid("the database is unavailable".into())
 }
 
 // ---- plain functions (tested) ----
 
-pub fn import_open(state: &AppState, path: PathBuf) -> Result<ImportView, AppError> {
+/// Open a statement or batch file for review. An unrecognized file leaves
+/// any open review untouched.
+pub fn import_open(state: &AppState, path: PathBuf) -> Result<OpenResult, AppError> {
     let store = state.store.lock().map_err(store_err)?;
-    let session = ImportSession::open(&store, &path)?;
-    let view = session.view();
-    *state.session.lock().map_err(store_err)? = Some(session);
-    Ok(view)
+    let reg = state.registry.read().map_err(store_err)?;
+    match ImportSession::open_file(&store, &reg, &path)? {
+        Opened::Unrecognized {
+            file_name,
+            file_kind,
+        } => Ok(OpenResult::Unrecognized {
+            file_name,
+            file_kind,
+        }),
+        Opened::Review(session) => {
+            let view = session.view();
+            *state.session.lock().map_err(store_err)? = Some(*session);
+            Ok(OpenResult::Review {
+                view: Box::new(view),
+            })
+        }
+    }
+}
+
+/// Re-read the open statement with another matching adapter.
+pub fn import_choose_adapter(state: &AppState, id: String) -> Result<ImportView, AppError> {
+    let reg = state.registry.read().map_err(store_err)?;
+    with_session(state, |s, store| {
+        s.choose_adapter(store, &reg, &id)?;
+        Ok(s.view())
+    })
 }
 
 fn with_session<T>(
@@ -202,7 +226,7 @@ fn today() -> Date {
 
 // ---- Tauri wrappers ----
 
-async fn blocking<T: Send + 'static>(
+pub(crate) async fn blocking<T: Send + 'static>(
     app: AppHandle,
     f: impl FnOnce(&AppState) -> Result<T, AppError> + Send + 'static,
 ) -> Result<T, AppError> {
@@ -212,8 +236,13 @@ async fn blocking<T: Send + 'static>(
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn cmd_import_open(app: AppHandle, path: PathBuf) -> Result<ImportView, AppError> {
+pub async fn cmd_import_open(app: AppHandle, path: PathBuf) -> Result<OpenResult, AppError> {
     blocking(app, move |s| import_open(s, path)).await
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn cmd_import_choose_adapter(app: AppHandle, id: String) -> Result<ImportView, AppError> {
+    blocking(app, move |s| import_choose_adapter(s, id)).await
 }
 
 #[tauri::command(rename_all = "snake_case")]

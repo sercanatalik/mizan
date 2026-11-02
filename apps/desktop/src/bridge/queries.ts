@@ -41,9 +41,20 @@ function dataChanged(qc: QueryClient) {
   }
 }
 
+/** Open a file. An unrecognized file leaves the current review as it is. */
 export function useImportOpen() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: api.importOpen, onSuccess: (v) => reviewChanged(qc, v) });
+  return useMutation({
+    mutationFn: api.importOpen,
+    onSuccess: (r) => {
+      if (r.type === "review") reviewChanged(qc, r.view);
+    },
+  });
+}
+
+export function useImportChooseAdapter() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: api.importChooseAdapter, onSuccess: (v) => reviewChanged(qc, v) });
 }
 
 export function useImportDecide() {

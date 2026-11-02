@@ -1,0 +1,121 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {
+      "memo": "Example Employer B.V. · Salary October",
+      "account": {
+        "hint": "NL00EXMP0123456789"
+      },
+      "kind": "deposit",
+      "date": "2026-10-01",
+      "net_cash": {
+        "amount": "2500",
+        "currency": "EUR"
+      },
+      "external_id": "20261001-01",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "843a139a123087a16e047cb76b1506e179476cb62259e510745f0dfc9f5ceb86",
+        "locator": "FITID 20261001-01"
+      }
+    },
+    {
+      "memo": "Grocer & Sons",
+      "account": {
+        "hint": "NL00EXMP0123456789"
+      },
+      "kind": "withdrawal",
+      "date": "2026-10-04",
+      "net_cash": {
+        "amount": "42.8",
+        "currency": "EUR"
+      },
+      "external_id": "20261004-01",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "843a139a123087a16e047cb76b1506e179476cb62259e510745f0dfc9f5ceb86",
+        "locator": "FITID 20261004-01"
+      }
+    },
+    {
+      "memo": "Savings transfer",
+      "account": {
+        "hint": "NL00EXMP0123456789"
+      },
+      "kind": "withdrawal",
+      "date": "2026-10-10",
+      "net_cash": {
+        "amount": "500",
+        "currency": "EUR"
+      },
+      "external_id": "20261010-01",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "843a139a123087a16e047cb76b1506e179476cb62259e510745f0dfc9f5ceb86",
+        "locator": "FITID 20261010-01"
+      }
+    },
+    {
+      "memo": "Credit interest",
+      "account": {
+        "hint": "NL00EXMP0123456789"
+      },
+      "kind": "interest",
+      "date": "2026-10-31",
+      "net_cash": {
+        "amount": "0.37",
+        "currency": "EUR"
+      },
+      "external_id": "20261031-01",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "843a139a123087a16e047cb76b1506e179476cb62259e510745f0dfc9f5ceb86",
+        "locator": "FITID 20261031-01"
+      }
+    },
+    {
+      "memo": "Account fee",
+      "account": {
+        "hint": "NL00EXMP0123456789"
+      },
+      "kind": "fee",
+      "date": "2026-10-31",
+      "net_cash": {
+        "amount": "3.5",
+        "currency": "EUR"
+      },
+      "external_id": "20261031-02",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "843a139a123087a16e047cb76b1506e179476cb62259e510745f0dfc9f5ceb86",
+        "locator": "FITID 20261031-02"
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "cash": [
+        {
+          "amount": "1954.07",
+          "currency": "EUR"
+        }
+      ],
+      "account": {
+        "hint": "NL00EXMP0123456789"
+      },
+      "as_of": "2026-10-31",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "843a139a123087a16e047cb76b1506e179476cb62259e510745f0dfc9f5ceb86",
+        "locator": "LEDGERBAL"
+      }
+    }
+  ],
+  "diagnostics": []
+}

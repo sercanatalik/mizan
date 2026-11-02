@@ -1,0 +1,282 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {
+      "memo": "Deposit",
+      "account": {
+        "hint": "X0001234"
+      },
+      "kind": "deposit",
+      "date": "2026-10-01",
+      "net_cash": {
+        "amount": "5000",
+        "currency": "USD"
+      },
+      "external_id": "C001",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID C001"
+      }
+    },
+    {
+      "external_id": "B100",
+      "account": {
+        "hint": "X0001234"
+      },
+      "date": "2026-10-02",
+      "settle_date": "2026-10-06",
+      "instrument": {
+        "cusip": "037833100",
+        "symbol": "EXMP",
+        "name": "Example Corp"
+      },
+      "kind": "buy",
+      "quantity": "10",
+      "price": {
+        "amount": "150",
+        "currency": "USD"
+      },
+      "charges": [
+        {
+          "type": "commission",
+          "amount": {
+            "amount": "1",
+            "currency": "USD"
+          }
+        }
+      ],
+      "net_cash": {
+        "amount": "1501",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID B100"
+      }
+    },
+    {
+      "external_id": "B101",
+      "account": {
+        "hint": "X0001234"
+      },
+      "date": "2026-10-03",
+      "instrument": {
+        "isin": "US0000000AA1",
+        "symbol": "EXTMX",
+        "name": "Example Total Market Fund"
+      },
+      "kind": "buy",
+      "quantity": "40.125",
+      "price": {
+        "amount": "24.92",
+        "currency": "USD"
+      },
+      "net_cash": {
+        "amount": "999.92",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID B101"
+      }
+    },
+    {
+      "external_id": "S200",
+      "account": {
+        "hint": "X0001234"
+      },
+      "date": "2026-10-20",
+      "instrument": {
+        "cusip": "037833100",
+        "symbol": "EXMP",
+        "name": "Example Corp"
+      },
+      "memo": "Partial sale",
+      "kind": "sell",
+      "quantity": "4",
+      "price": {
+        "amount": "162.5",
+        "currency": "USD"
+      },
+      "charges": [
+        {
+          "type": "commission",
+          "amount": {
+            "amount": "1",
+            "currency": "USD"
+          }
+        },
+        {
+          "type": "other",
+          "amount": {
+            "amount": "0.02",
+            "currency": "USD"
+          }
+        }
+      ],
+      "net_cash": {
+        "amount": "648.98",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID S200"
+      }
+    },
+    {
+      "external_id": "D300",
+      "account": {
+        "hint": "X0001234"
+      },
+      "date": "2026-10-15",
+      "instrument": {
+        "cusip": "037833100",
+        "symbol": "EXMP",
+        "name": "Example Corp"
+      },
+      "kind": "dividend",
+      "net_cash": {
+        "amount": "2.4",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID D300"
+      }
+    },
+    {
+      "external_id": "R400:income",
+      "account": {
+        "hint": "X0001234"
+      },
+      "date": "2026-10-30",
+      "instrument": {
+        "isin": "US0000000AA1",
+        "symbol": "EXTMX",
+        "name": "Example Total Market Fund"
+      },
+      "kind": "dividend",
+      "net_cash": {
+        "amount": "12.5",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID R400"
+      }
+    },
+    {
+      "external_id": "R400:buy",
+      "account": {
+        "hint": "X0001234"
+      },
+      "date": "2026-10-30",
+      "instrument": {
+        "isin": "US0000000AA1",
+        "symbol": "EXTMX",
+        "name": "Example Total Market Fund"
+      },
+      "kind": "buy",
+      "quantity": "0.498",
+      "price": {
+        "amount": "25.1",
+        "currency": "USD"
+      },
+      "net_cash": {
+        "amount": "12.5",
+        "currency": "USD"
+      },
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID R400"
+      }
+    },
+    {
+      "external_id": "T500",
+      "account": {
+        "hint": "X0001234"
+      },
+      "date": "2026-10-12",
+      "instrument": {
+        "isin": "US0000000BB9",
+        "symbol": "SMPL",
+        "name": "Sample Industries"
+      },
+      "kind": "position_in",
+      "quantity": "25",
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "FITID T500"
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "cash": [
+        {
+          "amount": "3150.46",
+          "currency": "USD"
+        }
+      ],
+      "account": {
+        "hint": "X0001234"
+      },
+      "as_of": "2026-10-31",
+      "positions": [
+        {
+          "instrument": {
+            "cusip": "037833100",
+            "symbol": "EXMP",
+            "name": "Example Corp"
+          },
+          "quantity": "6"
+        },
+        {
+          "instrument": {
+            "isin": "US0000000AA1",
+            "symbol": "EXTMX",
+            "name": "Example Total Market Fund"
+          },
+          "quantity": "40.623"
+        },
+        {
+          "instrument": {
+            "isin": "US0000000BB9",
+            "symbol": "SMPL",
+            "name": "Sample Industries"
+          },
+          "quantity": "25"
+        }
+      ],
+      "source": {
+        "adapter": "ofx",
+        "adapter_version": "0.1.0",
+        "file_sha256": "72a13fd76fdb107affbec37de926fea618e17c3d282424e6e2fd693d70356c4f",
+        "locator": "INVPOSLIST"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "message": "CLOSUREOPT transactions are not imported yet",
+      "locator": "FITID X600"
+    }
+  ]
+}

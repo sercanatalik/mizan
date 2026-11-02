@@ -256,11 +256,12 @@ unknown cost basis.
 
 ## Adapter fixtures
 
-Every adapter ships fixtures, one directory per case:
+Every adapter ships fixtures, one directory per case (see
+[adapters.md](adapters.md#fixtures-and-the-ci-gate)):
 
 ```text
-fixtures/<adapter-id>/<case>/
-    input.<ext>      anonymized source file
+adapters/<adapter-id>/fixtures/<case>/
+    input.<ext>      synthetic or anonymized source file
     expected.json    the exact batch the adapter must produce
 ```
 

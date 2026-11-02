@@ -57,6 +57,8 @@ jobs:
       - run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Typecheck adapter scripts
+        run: npx tsc --noEmit -p ../../adapters/tsconfig.json
       - name: Lint
         run: npm run lint
       - name: Test

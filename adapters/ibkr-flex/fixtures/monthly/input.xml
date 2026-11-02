@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexQueryResponse queryName="Mizan monthly" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U0000001" fromDate="20261001" toDate="20261031" period="LastMonth" whenGenerated="20261101;080000">
+<AccountInformation accountId="U0000001" currency="USD" name="Sample Account" accountType="Individual"/>
+<Trades>
+<Trade accountId="U0000001" currency="USD" assetCategory="STK" symbol="EXMP" description="EXAMPLE CORP" isin="US0000000AA1" cusip="000000AA1" listingExchange="NASDAQ" multiplier="1" tradeID="5001" dateTime="20261002;093512" tradeDate="20261002" settleDateTarget="20261006" quantity="20" tradePrice="150.25" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-3006.00" buySell="BUY" openCloseIndicator="O" levelOfDetail="EXECUTION"/>
+<Trade accountId="U0000001" currency="EUR" assetCategory="STK" subCategory="ETF" symbol="SMPLE" description="SAMPLE WORLD UCITS ETF" isin="IE0000000BB2" listingExchange="IBIS" multiplier="1" tradeID="5002" dateTime="20261005;101500" tradeDate="20261005" settleDateTarget="20261007" quantity="15" tradePrice="98.40" ibCommission="-1.25" ibCommissionCurrency="EUR" netCash="-1477.25" buySell="BUY" openCloseIndicator="O" levelOfDetail="EXECUTION"/>
+<Trade accountId="U0000001" currency="USD" assetCategory="STK" symbol="SHRT" description="SHORT TARGET INC" isin="US0000000CC3" listingExchange="NYSE" multiplier="1" tradeID="5003" dateTime="20261008;143000" tradeDate="20261008" settleDateTarget="20261010" quantity="-8" tradePrice="50.00" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="399.00" buySell="SELL" openCloseIndicator="O" levelOfDetail="EXECUTION"/>
+<Trade accountId="U0000001" currency="USD" assetCategory="STK" symbol="SHRT" description="SHORT TARGET INC" isin="US0000000CC3" listingExchange="NYSE" multiplier="1" tradeID="5004" dateTime="20261022;153000" tradeDate="20261022" settleDateTarget="20261024" quantity="8" tradePrice="45.00" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-361.00" buySell="BUY" openCloseIndicator="C" levelOfDetail="EXECUTION"/>
+<Trade accountId="U0000001" currency="USD" assetCategory="STK" symbol="EXMP" description="EXAMPLE CORP" isin="US0000000AA1" cusip="000000AA1" listingExchange="NASDAQ" multiplier="1" tradeID="5005" dateTime="20261027;110000" tradeDate="20261027" settleDateTarget="20261029" quantity="-5" tradePrice="158.00" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="789.00" buySell="SELL" openCloseIndicator="C" levelOfDetail="EXECUTION"/>
+<Trade accountId="U0000001" currency="USD" assetCategory="STK" symbol="EXMP" quantity="15" levelOfDetail="SYMBOL_SUMMARY"/>
+</Trades>
+<CashTransactions>
+<CashTransaction accountId="U0000001" currency="USD" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20261001" amount="5000" type="Deposits/Withdrawals" transactionID="7001" levelOfDetail="DETAIL"/>
+<CashTransaction accountId="U0000001" currency="EUR" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20261001" amount="2000" type="Deposits/Withdrawals" transactionID="7002" levelOfDetail="DETAIL"/>
+<CashTransaction accountId="U0000001" currency="USD" symbol="EXMP" isin="US0000000AA1" description="EXMP(US0000000AA1) CASH DIVIDEND USD 1.20 PER SHARE" dateTime="20261015;202000" amount="24.00" type="Dividends" transactionID="7003" levelOfDetail="DETAIL"/>
+<CashTransaction accountId="U0000001" currency="USD" symbol="EXMP" isin="US0000000AA1" description="EXMP(US0000000AA1) CASH DIVIDEND USD 1.20 PER SHARE - US TAX" dateTime="20261015;202000" amount="-3.60" type="Withholding Tax" transactionID="7004" levelOfDetail="DETAIL"/>
+<CashTransaction accountId="U0000001" currency="USD" description="USD CREDIT INT FOR SEP-2026" dateTime="20261003" amount="1.12" type="Broker Interest Received" transactionID="7005" levelOfDetail="DETAIL"/>
+<CashTransaction accountId="U0000001" currency="USD" description="BALANCE OF MONTHLY MINIMUM FEE FOR SEP 2026" dateTime="20261003" amount="-3.00" type="Other Fees" transactionID="7006" levelOfDetail="DETAIL"/>
+<CashTransaction accountId="U0000001" currency="USD" description="DISBURSEMENT INITIATED BY SAMPLE ACCOUNT" dateTime="20261030" amount="-500" type="Deposits/Withdrawals" transactionID="7007" levelOfDetail="DETAIL"/>
+<CashTransaction accountId="U0000001" currency="USD" amount="4522.52" type="Deposits/Withdrawals" levelOfDetail="SUMMARY"/>
+</CashTransactions>
+<OpenPositions>
+<OpenPosition accountId="U0000001" currency="USD" assetCategory="STK" symbol="EXMP" description="EXAMPLE CORP" isin="US0000000AA1" cusip="000000AA1" reportDate="20261031" position="15" markPrice="160.10" levelOfDetail="SUMMARY"/>
+<OpenPosition accountId="U0000001" currency="EUR" assetCategory="STK" subCategory="ETF" symbol="SMPLE" description="SAMPLE WORLD UCITS ETF" isin="IE0000000BB2" reportDate="20261031" position="15" markPrice="99.10" levelOfDetail="SUMMARY"/>
+</OpenPositions>
+<CashReport>
+<CashReportCurrency accountId="U0000001" currency="BASE_SUMMARY" fromDate="20261001" toDate="20261031" endingCash="2862.55" levelOfDetail="Currency"/>
+<CashReportCurrency accountId="U0000001" currency="EUR" fromDate="20261001" toDate="20261031" endingCash="522.75" levelOfDetail="Currency"/>
+<CashReportCurrency accountId="U0000001" currency="USD" fromDate="20261001" toDate="20261031" endingCash="2339.52" levelOfDetail="Currency"/>
+</CashReport>
+<CorporateActions>
+<CorporateAction accountId="U0000001" currency="USD" symbol="OLDX" description="OLDX SPLIT 2 FOR 1" reportDate="20261020" quantity="10" type="FS" transactionID="8001"/>
+</CorporateActions>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>

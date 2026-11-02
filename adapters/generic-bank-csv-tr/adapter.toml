@@ -1,0 +1,56 @@
+# A generic Turkish bank account CSV: semicolon-separated, windows-1254,
+# Turkish number format (1.234,56) and dd.MM.yyyy dates. Copy and adjust
+# the column names for your bank, or use the column mapper in the app.
+
+[adapter]
+id = "generic-bank-csv-tr"
+version = "0.1.0"
+name = "Turkish bank account CSV (generic)"
+type = "mapping"
+files = ["csv"]
+description = "İşlem Tarihi; Açıklama; Tutar; Bakiye; Dekont No"
+
+[detect]
+required_columns = ["İşlem Tarihi", "Açıklama", "Tutar", "Dekont No"]
+
+[input]
+delimiter = ";"
+encoding = "windows-1254"
+skip_rows = 1
+decimal = ","
+thousands = "."
+date_format = "%d.%m.%Y"
+
+[account]
+hint = { const = "TR-BANK" }
+
+[[rules]]
+column = "Açıklama"
+matches = "(?i)^devir"
+kind = "skip"
+
+[[rules]]
+column = "Açıklama"
+equals = "Hesap İşletim Ücreti"
+kind = "fee"
+
+[[rules]]
+column = "Açıklama"
+matches = "(?i)faiz"
+kind = "interest"
+
+[[rules]]
+column = "Tutar"
+matches = "^-"
+kind = "withdrawal"
+
+[[rules]]
+column = "Tutar"
+matches = "^[0-9]"
+kind = "deposit"
+
+[fields]
+date = { column = "İşlem Tarihi" }
+external_id = { column = "Dekont No", optional = true }
+net_cash = { amount = { column = "Tutar", transform = ["abs"] }, currency = { const = "TRY" } }
+memo = { column = "Açıklama" }

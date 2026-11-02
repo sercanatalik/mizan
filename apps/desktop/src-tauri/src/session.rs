@@ -1,6 +1,7 @@
 //! The open import review.
 //!
-//! A session holds the batch file's JSON and the user's decisions. Every view
+//! A session holds the batch JSON (read from a batch file, or produced by an
+//! adapter from a statement file) and the user's decisions. Every view
 //! is rebuilt from those with a read-only resolver, so nothing is written
 //! until [`ImportSession::commit`]. Creating or mapping an account, or
 //! creating an asset, writes only that mapping and then rebuilds.
@@ -8,6 +9,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use mizan_adapters::{detect, run_adapter, Detection, FileInput, Origin, Registry};
 use mizan_core::{
     commit, prepare, report, resolve_batch, CommitError, CreatePolicy, Decision, Decisions,
     MappingResolver, Prepared, PreviewResolver, ReviewItem, ReviewReport,
@@ -29,6 +31,8 @@ pub enum AppError {
     Commit(String),
     #[error("{0}")]
     Invalid(String),
+    #[error("{0}")]
+    Adapter(String),
 }
 
 impl AppError {
@@ -39,6 +43,7 @@ impl AppError {
             AppError::Storage(_) => "storage",
             AppError::Commit(_) => "commit",
             AppError::Invalid(_) => "invalid",
+            AppError::Adapter(_) => "adapter",
         }
     }
 }
@@ -62,10 +67,40 @@ impl From<CommitError> for AppError {
     }
 }
 
+/// An adapter that recognizes the open file.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct AdapterInfo {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    /// 1–100; higher is a better match.
+    pub score: u8,
+    /// A mapping the user saved, rather than one shipped with Mizan.
+    pub user: bool,
+}
+
+impl From<mizan_adapters::Match> for AdapterInfo {
+    fn from(m: mizan_adapters::Match) -> Self {
+        AdapterInfo {
+            id: m.id,
+            name: m.name,
+            version: m.version,
+            score: m.score,
+            user: m.origin == Origin::User,
+        }
+    }
+}
+
 /// What the batch says about itself, for the review header.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct SourceInfo {
+    /// The adapter that read the statement; `None` for a batch file.
+    pub adapter: Option<AdapterInfo>,
+    /// Every adapter that recognizes the file, best first (empty for a batch file).
+    pub matches: Vec<AdapterInfo>,
+    /// Adapter names and versions recorded in the batch's provenance.
     pub adapters: Vec<String>,
     pub file_sha256: Option<String>,
     pub accounts: Vec<String>,
@@ -93,8 +128,33 @@ pub struct CommitView {
     pub skipped_undecided: usize,
 }
 
+/// Result of opening a file: a review, or a file no adapter recognizes.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum OpenResult {
+    Review {
+        view: Box<ImportView>,
+    },
+    Unrecognized {
+        file_name: String,
+        file_kind: String,
+    },
+}
+
+/// How [`ImportSession::open_file`] went.
+pub enum Opened {
+    Review(Box<ImportSession>),
+    Unrecognized {
+        file_name: String,
+        file_kind: String,
+    },
+}
+
 pub struct ImportSession {
     pub path: PathBuf,
+    /// The statement's bytes, kept to re-run another adapter. Empty for batch files.
+    bytes: Vec<u8>,
     json: String,
     source: SourceInfo,
     decisions: Decisions,
@@ -127,6 +187,8 @@ fn source_info(json: &str) -> Result<SourceInfo, AppError> {
         dates.insert(a.item.as_of);
     }
     Ok(SourceInfo {
+        adapter: None,
+        matches: Vec::new(),
         adapters: adapters.into_iter().collect(),
         file_sha256: file,
         accounts: accounts.into_iter().collect(),
@@ -150,6 +212,23 @@ fn build(
     Ok((prepared, rep))
 }
 
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// Run one adapter over the file and return its batch JSON.
+fn run_one(reg: &Registry, id: &str, path: &Path, bytes: &[u8]) -> Result<String, AppError> {
+    let loaded = reg
+        .get(id)
+        .ok_or_else(|| AppError::Invalid(format!("adapter {id} is not loaded")))?;
+    let file = FileInput::new(file_name(path), bytes.to_vec());
+    let value = run_adapter(loaded.adapter.as_ref(), &file)
+        .map_err(|e| AppError::Adapter(e.to_string()))?;
+    Ok(value.to_string())
+}
+
 impl ImportSession {
     /// Read and review a batch file. Writes nothing.
     pub fn open(store: &Store, path: &Path) -> Result<Self, AppError> {
@@ -157,17 +236,105 @@ impl ImportSession {
             path: path.display().to_string(),
             message: e.to_string(),
         })?;
-        let source = source_info(&json)?;
+        Self::from_json(store, path, Vec::new(), json, None, Vec::new())
+    }
+
+    fn from_json(
+        store: &Store,
+        path: &Path,
+        bytes: Vec<u8>,
+        json: String,
+        adapter: Option<AdapterInfo>,
+        matches: Vec<AdapterInfo>,
+    ) -> Result<Self, AppError> {
+        let source = SourceInfo {
+            adapter,
+            matches,
+            ..source_info(&json)?
+        };
         let decisions = Decisions::new();
         let (prepared, report) = build(store, &json, &decisions)?;
         Ok(ImportSession {
             path: path.to_owned(),
+            bytes,
             json,
             source,
             decisions,
             prepared,
             report,
         })
+    }
+
+    /// Open any supported file: a batch opens directly; a statement goes
+    /// through detection and the best matching adapter. Writes nothing.
+    pub fn open_file(store: &Store, reg: &Registry, path: &Path) -> Result<Opened, AppError> {
+        let bytes = std::fs::read(path).map_err(|e| AppError::Io {
+            path: path.display().to_string(),
+            message: e.to_string(),
+        })?;
+        let file = FileInput::new(file_name(path), bytes);
+        match detect(reg, &file) {
+            Detection::Batch => {
+                let json = String::from_utf8(file.bytes)
+                    .map_err(|_| AppError::Invalid("the batch file is not UTF-8 text".into()))?;
+                Ok(Opened::Review(Box::new(Self::from_json(
+                    store,
+                    path,
+                    Vec::new(),
+                    json,
+                    None,
+                    Vec::new(),
+                )?)))
+            }
+            Detection::Unrecognized => Ok(Opened::Unrecognized {
+                file_name: file.name.clone(),
+                file_kind: serde_json::to_value(file.kind)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .unwrap_or_default(),
+            }),
+            Detection::Matches(ms) => {
+                let matches: Vec<AdapterInfo> = ms.into_iter().map(AdapterInfo::from).collect();
+                let best = matches[0].clone();
+                let json = run_one(reg, &best.id, path, &file.bytes)?;
+                Ok(Opened::Review(Box::new(Self::from_json(
+                    store,
+                    path,
+                    file.bytes,
+                    json,
+                    Some(best),
+                    matches,
+                )?)))
+            }
+        }
+    }
+
+    /// Re-read the statement with another matching adapter. Clears decisions,
+    /// because record indexes differ between adapters.
+    pub fn choose_adapter(
+        &mut self,
+        store: &Store,
+        reg: &Registry,
+        id: &str,
+    ) -> Result<(), AppError> {
+        let chosen = self
+            .source
+            .matches
+            .iter()
+            .find(|m| m.id == id)
+            .cloned()
+            .ok_or_else(|| AppError::Invalid(format!("adapter {id} does not match this file")))?;
+        let json = run_one(reg, id, &self.path, &self.bytes)?;
+        let matches = std::mem::take(&mut self.source.matches);
+        *self = Self::from_json(
+            store,
+            &self.path,
+            std::mem::take(&mut self.bytes),
+            json,
+            Some(chosen),
+            matches,
+        )?;
+        Ok(())
     }
 
     fn rebuild(&mut self, store: &Store) -> Result<(), AppError> {
@@ -179,11 +346,7 @@ impl ImportSession {
 
     pub fn view(&self) -> ImportView {
         ImportView {
-            file_name: self
-                .path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            file_name: file_name(&self.path),
             source: self.source.clone(),
             report: self.report.clone(),
         }
@@ -319,6 +482,142 @@ mod tests {
             s.create_asset(store, key).unwrap();
         }
         s.commit(store).unwrap();
+    }
+
+    fn repo(rel: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .join(rel)
+    }
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("mizan-session-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn review(o: Opened) -> ImportSession {
+        match o {
+            Opened::Review(s) => *s,
+            Opened::Unrecognized { file_name, .. } => panic!("{file_name} unrecognized"),
+        }
+    }
+
+    #[test]
+    fn statement_opens_through_its_adapter() {
+        let store = Store::open_in_memory().unwrap();
+        let reg = Registry::load(None);
+        let s = review(
+            ImportSession::open_file(
+                &store,
+                &reg,
+                &repo("adapters/ofx/fixtures/investment-xml/input.qfx"),
+            )
+            .unwrap(),
+        );
+        let v = s.view();
+        let a = v.source.adapter.as_ref().unwrap();
+        assert_eq!((a.id.as_str(), a.user), ("ofx", false));
+        assert_eq!(v.source.matches.len(), 1);
+        assert_eq!(v.source.adapters, vec![format!("ofx {}", a.version)]);
+        assert_eq!(v.source.accounts, vec!["X0001234".to_string()]);
+        assert!(v.report.summary.new > 0);
+        for t in ["accounts", "assets", "activities", "import_batches"] {
+            assert_eq!(store.count(t).unwrap(), 0, "{t}");
+        }
+    }
+
+    #[test]
+    fn batch_file_opens_without_adapter() {
+        let store = Store::open_in_memory().unwrap();
+        let s = review(
+            ImportSession::open_file(&store, &Registry::load(None), &fixture("seed.json")).unwrap(),
+        );
+        assert_eq!(s.view().source.adapter, None);
+        assert!(s.view().source.matches.is_empty());
+        assert_eq!(
+            s.view().source.adapters,
+            vec!["degiro-csv 0.4.0".to_string()]
+        );
+    }
+
+    #[test]
+    fn unrecognized_csv_is_reported() {
+        let dir = temp_dir("unrec");
+        let f = dir.join("mystery.csv");
+        std::fs::write(&f, "Datum,Omschrijving,Bedrag\n01-10-2026,Iets,5\n").unwrap();
+        let store = Store::open_in_memory().unwrap();
+        let o = ImportSession::open_file(&store, &Registry::load(None), &f).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        match o {
+            Opened::Unrecognized {
+                file_name,
+                file_kind,
+            } => assert_eq!(
+                (file_name.as_str(), file_kind.as_str()),
+                ("mystery.csv", "csv")
+            ),
+            Opened::Review(_) => panic!("should not be recognized"),
+        }
+    }
+
+    #[test]
+    fn switching_adapters_rebuilds_and_clears_decisions() {
+        // A user mapping that reads the same bank CSV into another account.
+        let dir = temp_dir("switch");
+        let generic =
+            std::fs::read_to_string(repo("adapters/generic-bank-csv-tr/adapter.toml")).unwrap();
+        let mine = generic
+            .replace("id = \"generic-bank-csv-tr\"", "id = \"my-bank\"")
+            .replace(
+                "name = \"Turkish bank account CSV (generic)\"",
+                "name = \"My bank\"",
+            )
+            .replace("{ const = \"TR-BANK\" }", "{ const = \"MY-BANK\" }");
+        std::fs::write(dir.join("my-bank.toml"), mine).unwrap();
+        let reg = Registry::load(Some(&dir));
+        assert!(
+            reg.errors.is_empty(),
+            "{:?}",
+            reg.errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+        let store = Store::open_in_memory().unwrap();
+        let mut s = review(
+            ImportSession::open_file(
+                &store,
+                &reg,
+                &repo("adapters/generic-bank-csv-tr/fixtures/basic/input.csv"),
+            )
+            .unwrap(),
+        );
+        let ids: Vec<String> = s
+            .view()
+            .source
+            .matches
+            .iter()
+            .map(|m| m.id.clone())
+            .collect();
+        assert_eq!(
+            ids,
+            ["my-bank", "generic-bank-csv-tr"],
+            "user mapping wins the tie"
+        );
+        assert_eq!(s.view().source.accounts, vec!["MY-BANK".to_string()]);
+        s.decisions.insert(0, Decision::New);
+
+        s.choose_adapter(&store, &reg, "generic-bank-csv-tr")
+            .unwrap();
+        let v = s.view();
+        assert_eq!(v.source.adapter.as_ref().unwrap().id, "generic-bank-csv-tr");
+        assert_eq!(v.source.accounts, vec!["TR-BANK".to_string()]);
+        assert_eq!(v.source.matches.len(), 2, "matches kept for switching back");
+        assert!(s.decisions.is_empty());
+        assert!(
+            s.choose_adapter(&store, &reg, "ofx").is_err(),
+            "not a match for this file"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

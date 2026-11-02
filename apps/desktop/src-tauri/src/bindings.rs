@@ -31,6 +31,11 @@ fn committed_desktop_bindings_match_generated() {
     let cfg = Config::new().with_out_dir(&tmp).with_large_int("number");
     crate::session::ImportView::export_all(&cfg).unwrap();
     crate::session::CommitView::export_all(&cfg).unwrap();
+    crate::session::OpenResult::export_all(&cfg).unwrap();
+    crate::mapper::MapperOptions::export_all(&cfg).unwrap();
+    crate::mapper::MapperInspect::export_all(&cfg).unwrap();
+    crate::mapper::MapperPreview::export_all(&cfg).unwrap();
+    crate::mapper::SavedMapping::export_all(&cfg).unwrap();
     crate::commands::BatchView::export_all(&cfg).unwrap();
     crate::commands::AccountView::export_all(&cfg).unwrap();
     crate::market::SettingsView::export_all(&cfg).unwrap();

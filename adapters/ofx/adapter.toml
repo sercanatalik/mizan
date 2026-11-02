@@ -1,0 +1,13 @@
+# OFX / QFX statements from banks and brokers. OFX 1.x (SGML) and 2.x (XML)
+# are both read. Bank transactions, investment trades, income, reinvestments
+# and transfers become records; closing balances and positions become
+# balance checks.
+
+[adapter]
+id = "ofx"
+version = "0.1.0"
+name = "OFX / QFX statement"
+type = "native"
+native = "ofx"
+files = ["ofx"]
+description = "Bank and investment statements in Open Financial Exchange format"

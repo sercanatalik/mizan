@@ -1,0 +1,8 @@
+Hesap Hareketleri - Örnek Hesap
+Ýþlem Tarihi;Açýklama;Tutar;Bakiye;Dekont No
+01.10.2026;Devir Bakiyesi;0,00;1.500,00;
+02.10.2026;Maaþ Ödemesi;25.000,00;26.500,00;D-1001
+05.10.2026;EFT Gönderimi - Kira;-12.500,00;14.000,00;D-1002
+15.10.2026;Hesap Ýþletim Ücreti;-25,50;13.974,50;D-1003
+31.10.2026;Vadeli Hesap Faiz Getirisi;312,75;14.287,25;D-1004
+31.10.2026;31/10 Kart Ödemesi;-2.000,00;12.287,25;D-1005

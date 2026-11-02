@@ -62,16 +62,27 @@ folder on first launch and migrates it automatically:
 | Windows | `%APPDATA%\org.mizan.desktop\mizan.db` |
 | Linux | `~/.local/share/org.mizan.desktop/mizan.db` |
 
-Back up or move that file to back up or move your data. Databases created with
+Column mappings you save are TOML files in the `adapters` folder beside it.
+Back up or move `mizan.db` (and the `adapters` folder) to back up or move your data. Databases created with
 `mizan-cli` open in the app unchanged.
 
 ## Importing
 
-Until adapters for raw statements (CSV, PDF, …) are available, the app imports
+The app opens statement files (CSV, XLSX, PDF, OFX/QFX, XML) and
 `mizan.import/1` batch files (see [import-schema.md](import-schema.md)).
 
-1. Open **Imports** and choose **Open batch file** (or **File › Import batch…**, Cmd/Ctrl+O).
-2. Review what the batch would change. Nothing is saved yet.
+1. Open **Imports** and choose **Open file** (or **File › Import file…**, Cmd/Ctrl+O).
+   - A batch file opens directly.
+   - A statement goes through the adapters (see [adapters.md](adapters.md)).
+     The best match reads it; the review header shows which one
+     ("ibkr-flex 0.1.0"). When several adapters match, pick another under
+     **Adapter**; the file is read again and earlier decisions are cleared.
+   - A file no adapter recognizes is reported. For CSV and XLSX, **Open column
+     mapper** lets you map its columns with a live preview and save the mapping
+     under a name; the next file with the same columns is recognized
+     automatically. Saved mappings live in the `adapters` folder next to the
+     database and can be exported to share.
+2. Review what the file would change. Nothing is saved yet.
    - **Unresolved:** create an account or map the statement's account identifier
      to an existing account; create assets for unknown instruments.
    - **Need your decision:** a record matches one imported from a different file
@@ -93,7 +104,7 @@ the screen says what is missing instead of showing a number.
 | Overview | Portfolio total and per-account totals in the base currency, accounts with their latest balance check, items needing attention | Returns engine for the value chart |
 | Holdings | Positions and cash per account; price (as of), value, weight, unrealized gain; provisional average cost; flags | |
 | Performance | Net contributions (deposits minus withdrawals) by period | Returns engine for TWR, MWR, benchmark |
-| Imports | Full review, commit, history and undo | Adapters for raw statement files |
+| Imports | Statement files through adapters, column mapper, full review, commit, history and undo | AI-assisted column mapper |
 | Assets | Price source per asset, TEFAS suggestions, manual prices, merging duplicates | |
 | Settings | Base currency, market data providers (on/off), refresh on start, last refresh report | |
 | Activity, Income, Accounts | Placeholder | Later changes |

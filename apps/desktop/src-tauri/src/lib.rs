@@ -1,6 +1,7 @@
 //! Mizan desktop app: Tauri host for the import pipeline and read models.
 
 pub mod commands;
+pub mod mapper;
 pub mod market;
 pub mod menu;
 pub mod session;
@@ -17,6 +18,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::cmd_import_open,
+            commands::cmd_import_choose_adapter,
+            mapper::cmd_mapper_inspect,
+            mapper::cmd_mapper_preview,
+            mapper::cmd_mapper_save,
+            mapper::cmd_mapper_export,
             commands::cmd_import_current,
             commands::cmd_import_decide,
             commands::cmd_import_create_account,
@@ -47,7 +53,13 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let store = state::open_store(&dir).map_err(std::io::Error::other)?;
-            app.manage(state::AppState::with_path(store, state::db_path(&dir)));
+            let st = state::AppState::for_app_dir(store, &dir);
+            if let Ok(reg) = st.registry.read() {
+                for e in &reg.errors {
+                    eprintln!("mizan: adapter {} not loaded: {}", e.location, e.message);
+                }
+            }
+            app.manage(st);
             menu::build(app)?;
             market::spawn_start_refresh(app.handle().clone());
             Ok(())

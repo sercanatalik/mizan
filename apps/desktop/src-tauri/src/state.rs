@@ -1,14 +1,17 @@
-//! Application state: the database and the open import review.
+//! Application state: the database, the loaded adapters and the open import review.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 
+use mizan_adapters::Registry;
 use mizan_storage::Store;
 
 use crate::session::ImportSession;
 
 pub const DB_FILE: &str = "mizan.db";
+/// Folder in the app data directory holding the user's saved mappings.
+pub const ADAPTERS_DIR: &str = "adapters";
 
 pub struct AppState {
     pub store: Mutex<Store>,
@@ -18,6 +21,10 @@ pub struct AppState {
     pub db_path: Option<PathBuf>,
     /// Set while a price refresh runs; only one runs at a time.
     pub refreshing: AtomicBool,
+    /// Bundled adapters plus the user's saved mappings.
+    pub registry: RwLock<Registry>,
+    /// Where user mappings are saved; `None` in tests that never save.
+    pub adapters_dir: Option<PathBuf>,
 }
 
 impl AppState {
@@ -27,12 +34,29 @@ impl AppState {
             session: Mutex::new(None),
             db_path: None,
             refreshing: AtomicBool::new(false),
+            registry: RwLock::new(Registry::load(None)),
+            adapters_dir: None,
         }
     }
 
-    pub fn with_path(store: Store, db_path: PathBuf) -> Self {
+    /// State for the app: the database file and user mappings live in `app_data_dir`.
+    pub fn for_app_dir(store: Store, app_data_dir: &Path) -> Self {
+        Self::with_adapters_dir(
+            store,
+            Some(db_path(app_data_dir)),
+            app_data_dir.join(ADAPTERS_DIR),
+        )
+    }
+
+    pub fn with_adapters_dir(
+        store: Store,
+        db_path: Option<PathBuf>,
+        adapters_dir: PathBuf,
+    ) -> Self {
         AppState {
-            db_path: Some(db_path),
+            db_path,
+            registry: RwLock::new(Registry::load(Some(&adapters_dir))),
+            adapters_dir: Some(adapters_dir),
             ..AppState::new(store)
         }
     }

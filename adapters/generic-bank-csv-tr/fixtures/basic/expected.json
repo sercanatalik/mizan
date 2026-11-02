@@ -1,0 +1,108 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {
+      "net_cash": {
+        "amount": "25000.00",
+        "currency": "TRY"
+      },
+      "kind": "deposit",
+      "account": {
+        "hint": "TR-BANK"
+      },
+      "date": "2026-10-02",
+      "external_id": "D-1001",
+      "memo": "Maaş Ödemesi",
+      "source": {
+        "adapter": "generic-bank-csv-tr",
+        "adapter_version": "0.1.0",
+        "file_sha256": "78a63dc114fad86a81d847cfdb47243c8a7555074d94ff21aa54c204594636a5",
+        "locator": "row 4"
+      }
+    },
+    {
+      "net_cash": {
+        "amount": "12500.00",
+        "currency": "TRY"
+      },
+      "kind": "withdrawal",
+      "account": {
+        "hint": "TR-BANK"
+      },
+      "date": "2026-10-05",
+      "external_id": "D-1002",
+      "memo": "EFT Gönderimi - Kira",
+      "source": {
+        "adapter": "generic-bank-csv-tr",
+        "adapter_version": "0.1.0",
+        "file_sha256": "78a63dc114fad86a81d847cfdb47243c8a7555074d94ff21aa54c204594636a5",
+        "locator": "row 5"
+      }
+    },
+    {
+      "net_cash": {
+        "amount": "25.50",
+        "currency": "TRY"
+      },
+      "kind": "fee",
+      "account": {
+        "hint": "TR-BANK"
+      },
+      "date": "2026-10-15",
+      "external_id": "D-1003",
+      "memo": "Hesap İşletim Ücreti",
+      "source": {
+        "adapter": "generic-bank-csv-tr",
+        "adapter_version": "0.1.0",
+        "file_sha256": "78a63dc114fad86a81d847cfdb47243c8a7555074d94ff21aa54c204594636a5",
+        "locator": "row 6"
+      }
+    },
+    {
+      "net_cash": {
+        "amount": "312.75",
+        "currency": "TRY"
+      },
+      "kind": "interest",
+      "account": {
+        "hint": "TR-BANK"
+      },
+      "date": "2026-10-31",
+      "external_id": "D-1004",
+      "memo": "Vadeli Hesap Faiz Getirisi",
+      "source": {
+        "adapter": "generic-bank-csv-tr",
+        "adapter_version": "0.1.0",
+        "file_sha256": "78a63dc114fad86a81d847cfdb47243c8a7555074d94ff21aa54c204594636a5",
+        "locator": "row 7"
+      }
+    },
+    {
+      "net_cash": {
+        "amount": "2000.00",
+        "currency": "TRY"
+      },
+      "kind": "withdrawal",
+      "account": {
+        "hint": "TR-BANK"
+      },
+      "date": "2026-10-31",
+      "external_id": "D-1005",
+      "memo": "31/10 Kart Ödemesi",
+      "source": {
+        "adapter": "generic-bank-csv-tr",
+        "adapter_version": "0.1.0",
+        "file_sha256": "78a63dc114fad86a81d847cfdb47243c8a7555074d94ff21aa54c204594636a5",
+        "locator": "row 8"
+      }
+    }
+  ],
+  "assertions": [],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "message": "skipped: Devir Bakiyesi",
+      "locator": "row 3"
+    }
+  ]
+}

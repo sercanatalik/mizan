@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/mizan-import", "crates/mizan-core", "crates/mizan-storage", "crates/mizan-cli", "crates/mizan-market", "apps/desktop/src-tauri"]
+members = ["crates/mizan-import", "crates/mizan-core", "crates/mizan-storage", "crates/mizan-cli", "crates/mizan-market", "crates/mizan-adapters", "apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,6 +13,7 @@ mizan-import = { path = "crates/mizan-import" }
 mizan-core = { path = "crates/mizan-core" }
 mizan-storage = { path = "crates/mizan-storage" }
 mizan-market = { path = "crates/mizan-market" }
+mizan-adapters = { path = "crates/mizan-adapters" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 rust_decimal = "1"

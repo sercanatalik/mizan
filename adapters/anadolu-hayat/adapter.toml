@@ -1,0 +1,14 @@
+# Anadolu Hayat Emeklilik private pension (BES) fund history: the
+# "Geçmiş Fon İşlemleri" XLSX export from the online branch. Contributions
+# become deposits plus fund purchases; government contributions (Katkı Fonu,
+# AET) are booked under a separate "<contract>-DK" account. The export has no
+# holdings, so there are no balance checks.
+
+[adapter]
+id = "anadolu-hayat"
+version = "0.1.0"
+name = "Anadolu Hayat Emeklilik fund history"
+type = "script"
+script = "script.ts"
+files = ["xlsx"]
+description = "Geçmiş Fon İşlemleri (XLSX)"

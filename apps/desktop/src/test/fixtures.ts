@@ -64,7 +64,7 @@ export function reviewView(decided: "new" | "duplicate" | null = null, overrides
   };
   return {
     file_name: "degiro-2026Q3.json",
-    source: { adapters: ["degiro-csv 0.4.0"], file_sha256: SHA_B, accounts: ["DEG-4417"], first_date: "2026-07-01", last_date: "2026-09-30" },
+    source: { adapter: null, matches: [], adapters: ["degiro-csv 0.4.0"], file_sha256: SHA_B, accounts: ["DEG-4417"], first_date: "2026-07-01", last_date: "2026-09-30" },
     report,
   };
 }

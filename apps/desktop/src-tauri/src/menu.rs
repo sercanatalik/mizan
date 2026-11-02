@@ -32,7 +32,7 @@ pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         .quit()
         .build()?;
 
-    let import = MenuItemBuilder::with_id("import", "Import batch…")
+    let import = MenuItemBuilder::with_id("import", "Import file…")
         .accelerator("CmdOrCtrl+O")
         .build(app)?;
     let file = SubmenuBuilder::new(app, "File")

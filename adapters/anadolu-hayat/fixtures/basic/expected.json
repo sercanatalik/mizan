@@ -1,0 +1,470 @@
+{
+  "schema": "mizan.import/1",
+  "records": [
+    {
+      "memo": "Katkı Payı Yatırıma Yönlendirme",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "deposit",
+      "date": "2025-03-05",
+      "net_cash": {
+        "amount": "600.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "rows 14, 15, 16"
+      }
+    },
+    {
+      "settle_date": "2025-03-06",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-03-05",
+      "instrument": {
+        "symbol": "AH2",
+        "name": "Para Piyasası Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "1500.12",
+      "net_cash": {
+        "amount": "600.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 16"
+      }
+    },
+    {
+      "settle_date": "2025-03-07",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-03-05",
+      "instrument": {
+        "symbol": "BGL",
+        "name": "Altın Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "21.49",
+      "net_cash": {
+        "amount": "400.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 15"
+      }
+    },
+    {
+      "settle_date": "2025-03-07",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "sell",
+      "date": "2025-03-05",
+      "instrument": {
+        "symbol": "AH5",
+        "name": "Hisse Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "88.30",
+      "net_cash": {
+        "amount": "400.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 14"
+      }
+    },
+    {
+      "memo": "Katkı Payı Yatırıma Yönlendirme",
+      "account": {
+        "hint": "9000001-DK",
+        "name_hint": "Anadolu Hayat Emeklilik (Devlet Katkısı)"
+      },
+      "kind": "deposit",
+      "date": "2025-03-05",
+      "net_cash": {
+        "amount": "300.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 13"
+      }
+    },
+    {
+      "settle_date": "2025-03-06",
+      "account": {
+        "hint": "9000001-DK",
+        "name_hint": "Anadolu Hayat Emeklilik (Devlet Katkısı)"
+      },
+      "kind": "buy",
+      "date": "2025-03-05",
+      "instrument": {
+        "symbol": "AET",
+        "name": "Katkı Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "512.77",
+      "net_cash": {
+        "amount": "300.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 13"
+      }
+    },
+    {
+      "memo": "Ek Katkı Payı Yatırıma Yönlendirme",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "deposit",
+      "date": "2025-03-20",
+      "net_cash": {
+        "amount": "2500.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 12"
+      }
+    },
+    {
+      "settle_date": "2025-03-21",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-03-20",
+      "instrument": {
+        "symbol": "AH2",
+        "name": "Para Piyasası Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "6210.40",
+      "net_cash": {
+        "amount": "2500.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 12"
+      }
+    },
+    {
+      "settle_date": "2025-04-11",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "sell",
+      "date": "2025-04-10",
+      "instrument": {
+        "symbol": "AH2",
+        "name": "Para Piyasası Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "2950.00",
+      "net_cash": {
+        "amount": "1200.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 10"
+      }
+    },
+    {
+      "settle_date": "2025-04-14",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-04-10",
+      "instrument": {
+        "symbol": "ABE",
+        "name": "S&P 500 Fon Sepeti Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "160.25",
+      "net_cash": {
+        "amount": "700.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 9"
+      }
+    },
+    {
+      "settle_date": "2025-04-14",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-04-10",
+      "instrument": {
+        "symbol": "AEA",
+        "name": "Altın Katılım Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "95.50",
+      "net_cash": {
+        "amount": "500.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 8"
+      }
+    },
+    {
+      "settle_date": "2025-05-16",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "sell",
+      "date": "2025-05-15",
+      "instrument": {
+        "symbol": "BGL",
+        "name": "Altın Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "52.10",
+      "net_cash": {
+        "amount": "1000.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 7"
+      }
+    },
+    {
+      "settle_date": "2025-05-19",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-05-15",
+      "instrument": {
+        "symbol": "GMF",
+        "name": "Gümüş Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "410.33",
+      "net_cash": {
+        "amount": "990.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 6"
+      }
+    },
+    {
+      "memo": "Katkı Payı Yatırıma Yönlendirme",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "deposit",
+      "date": "2025-06-05",
+      "net_cash": {
+        "amount": "1000.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 5"
+      }
+    },
+    {
+      "settle_date": "2025-06-06",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-06-05",
+      "instrument": {
+        "symbol": "AH2",
+        "name": "Para Piyasası Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "2390.05",
+      "net_cash": {
+        "amount": "1000.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 5"
+      }
+    },
+    {
+      "memo": "Katkı Payı Yatırıma Yönlendirme",
+      "account": {
+        "hint": "9000001-DK",
+        "name_hint": "Anadolu Hayat Emeklilik (Devlet Katkısı)"
+      },
+      "kind": "deposit",
+      "date": "2025-06-05",
+      "net_cash": {
+        "amount": "300.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 4"
+      }
+    },
+    {
+      "settle_date": "2025-06-06",
+      "account": {
+        "hint": "9000001-DK",
+        "name_hint": "Anadolu Hayat Emeklilik (Devlet Katkısı)"
+      },
+      "kind": "buy",
+      "date": "2025-06-05",
+      "instrument": {
+        "symbol": "AET",
+        "name": "Katkı Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "498.20",
+      "net_cash": {
+        "amount": "300.00",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 4"
+      }
+    },
+    {
+      "memo": "Katkı Payı Yatırıma Yönlendirme",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "deposit",
+      "date": "2025-08-02",
+      "net_cash": {
+        "amount": "5432.10",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 3"
+      }
+    },
+    {
+      "settle_date": "2025-09-02",
+      "account": {
+        "hint": "9000001",
+        "name_hint": "Anadolu Hayat Emeklilik"
+      },
+      "kind": "buy",
+      "date": "2025-08-02",
+      "instrument": {
+        "symbol": "AH2",
+        "name": "Para Piyasası Fonu",
+        "class_hint": "fund",
+        "currency": "TRY"
+      },
+      "quantity": "12345.67",
+      "net_cash": {
+        "amount": "5432.10",
+        "currency": "TRY"
+      },
+      "source": {
+        "adapter": "anadolu-hayat",
+        "adapter_version": "0.1.0",
+        "file_sha256": "e17db357413f40548fcd2b64a965a8d94ae404c9ad0f89c88571fade922353c7",
+        "locator": "row 3"
+      }
+    }
+  ],
+  "assertions": [],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "message": "fund allocation changed on 2025-04-01; nothing to import",
+      "locator": "row 11"
+    },
+    {
+      "severity": "warning",
+      "message": "fund switch on 2025-05-15 is unbalanced: sells 1000.00 TL, buys 990.00 TL, difference 10.00 TL",
+      "locator": "rows 6, 7"
+    }
+  ]
+}
