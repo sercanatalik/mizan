@@ -48,6 +48,75 @@ pub struct SettingsView {
     pub providers: Vec<ProviderView>,
     pub last_report: Option<RefreshReport>,
     pub refreshing: bool,
+    pub inflation: InflationStatusView,
+}
+
+/// The inflation index used for real returns, as Settings shows it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct InflationStatusView {
+    /// For example "HICP Türkiye (Eurostat)"; `None` when the base currency has no index.
+    pub label: Option<String>,
+    /// Latest cached month, for example "Sep 2026".
+    pub through: Option<String>,
+    /// When the series was last requested.
+    pub last_checked: Option<String>,
+    /// The last request failed.
+    pub last_check_failed: bool,
+    /// Why the index is missing or not refreshed, when it is.
+    pub note: Option<String>,
+}
+
+fn inflation_status(
+    store: &Store,
+    cache: Option<&HistoryCache>,
+) -> Result<InflationStatusView, AppError> {
+    let base = mizan_core::valuation::base_currency(store)?;
+    let Some(series) = mizan_market::inflation::series_for(base.as_str()) else {
+        return Ok(InflationStatusView {
+            label: None,
+            through: None,
+            last_checked: None,
+            last_check_failed: false,
+            note: Some(format!(
+                "No inflation index for {base}; real returns are not available."
+            )),
+        });
+    };
+    let (values, check) = match cache {
+        Some(c) => (
+            c.inflation_index(series.source, series.id)?,
+            c.inflation_check(series.source, series.id)?,
+        ),
+        None => (vec![], None),
+    };
+    let through = values
+        .last()
+        .and_then(|v| mizan_market::inflation::YearMonth::parse(&v.month))
+        .map(|m| m.label());
+    let note = if !mizan_market::is_enabled(store, series.source) {
+        Some(format!(
+            "{} is not refreshed because {} is off{}.",
+            series.label,
+            series.provider,
+            if through.is_some() {
+                "; cached values are still used"
+            } else {
+                ""
+            }
+        ))
+    } else if through.is_none() {
+        Some("Not downloaded yet; the next refresh fetches it.".into())
+    } else {
+        None
+    };
+    Ok(InflationStatusView {
+        label: Some(series.full_label()),
+        through,
+        last_checked: check.as_ref().map(|c| c.checked_at.clone()),
+        last_check_failed: check.is_some_and(|c| !c.ok),
+        note,
+    })
 }
 
 fn locked<T>(_: T) -> AppError {
@@ -314,6 +383,9 @@ fn base_choices(store: &Store) -> Result<Vec<String>, AppError> {
 pub fn settings_view(state: &AppState) -> Result<SettingsView, AppError> {
     let providers = market_providers(state)?;
     let store = state.store.lock().map_err(locked)?;
+    let inflation = with_history(state, |cache| {
+        inflation_status(&store, cache.ok().map(|c| &*c))
+    })?;
     Ok(SettingsView {
         base_currency: mizan_core::valuation::base_currency(&store)?.to_string(),
         currencies: base_choices(&store)?,
@@ -326,6 +398,7 @@ pub fn settings_view(state: &AppState) -> Result<SettingsView, AppError> {
             .last_refresh_report()?
             .and_then(|(_, j)| serde_json::from_str(&j).ok()),
         refreshing: state.refreshing.load(Ordering::SeqCst),
+        inflation,
     })
 }
 
@@ -684,6 +757,67 @@ mod tests {
         };
         let id = store.create_asset("sym:AFT@", &hint).unwrap();
         (AppState::new(store), id)
+    }
+
+    #[test]
+    fn inflation_status_for_each_state() {
+        let (state, _) = state_with_fund();
+        // TRY base, nothing cached yet.
+        let s = settings_view(&state).unwrap().inflation;
+        assert_eq!(s.label.as_deref(), Some("HICP Türkiye (Eurostat)"));
+        assert_eq!(s.through, None);
+        assert_eq!(
+            s.note.as_deref(),
+            Some("Not downloaded yet; the next refresh fetches it.")
+        );
+
+        // Cached through September 2026.
+        with_history(&state, |c| {
+            c.unwrap()
+                .commit_inflation(
+                    "eurostat",
+                    "TR:I15",
+                    &[mizan_storage::CachedIndexValue {
+                        month: "2026-09".into(),
+                        value: "1675.96".into(),
+                    }],
+                    true,
+                    "2026-11-01T10:00:00Z",
+                )
+                .unwrap();
+            Ok(())
+        })
+        .unwrap();
+        let s = settings_view(&state).unwrap().inflation;
+        assert_eq!(s.through.as_deref(), Some("Sep 2026"));
+        assert_eq!(s.last_checked.as_deref(), Some("2026-11-01T10:00:00Z"));
+        assert!(!s.last_check_failed);
+        assert_eq!(s.note, None);
+
+        // Provider turned off: cached values still used.
+        {
+            let mut store = state.store.lock().unwrap();
+            mizan_market::set_enabled(&mut store, "eurostat", false).unwrap();
+        }
+        let s = settings_view(&state).unwrap().inflation;
+        assert_eq!(
+            s.note.as_deref(),
+            Some("HICP Türkiye is not refreshed because Eurostat is off; cached values are still used.")
+        );
+
+        // A base currency without an index.
+        state
+            .store
+            .lock()
+            .unwrap()
+            .set_setting("base_currency", "CHF")
+            .unwrap();
+        let s = settings_view(&state).unwrap().inflation;
+        assert_eq!(s.label, None);
+        assert_eq!(
+            s.note.as_deref(),
+            Some("No inflation index for CHF; real returns are not available.")
+        );
     }
 
     #[test]

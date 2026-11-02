@@ -13,8 +13,13 @@ other time.
 | **TCMB** | Daily exchange rates published by the Turkish central bank | Refresh: one request for `today.xml`. History: one archive file per business day, once |
 | **Yahoo Finance** | Daily closes of US and European stocks and ETFs, no key needed | Refresh: one request per assigned symbol for the last month. History: one request per symbol for its missing years |
 | **Twelve Data** | Daily closes of stocks and ETFs with your free API key (the free plan covers US listings) | As Yahoo, with the key in a request header |
+| **Eurostat** | Monthly consumer price indices for TRY (HICP Türkiye) and EUR (euro-area HICP) | Only when the base currency is TRY or EUR: one request for that series, at most once a day |
+| **BLS** | Monthly US consumer price index (USD) from the US Bureau of Labor Statistics | Only when the base currency is USD: one request per 10 years of missing history, at most once a day |
+| **ONS** | Monthly UK consumer price index (GBP) from the UK Office for National Statistics | Only when the base currency is GBP: one request, at most once a day |
 
-All four are enabled by default. Yahoo Finance and Twelve Data are only asked
+All seven are enabled by default; the inflation providers are described under
+[Inflation indices](#inflation-indices).
+ Yahoo Finance and Twelve Data are only asked
 for the symbols you assign to them on the Assets screen, so they make no
 requests until you do; Twelve Data also waits until you save a key. In
 **Settings › Market data providers**, each has an On/Off switch. A disabled provider makes no network requests, and the prices or
@@ -29,7 +34,7 @@ per computer, shared by every Mizan database on it:
 | | |
 |---|---|
 | Location | `~/.mizan/market-history.sqlite`, or `$MIZAN_HOME/market-history.sqlite` when `MIZAN_HOME` is set |
-| Contents | TEFAS fund prices by fund code, stock and ETF closes by provider and symbol, TCMB exchange rates by currency, the fund type of each code, and a record of every month, year or day already fetched |
+| Contents | TEFAS fund prices by fund code, stock and ETF closes by provider and symbol, TCMB exchange rates by currency, monthly inflation index values by series, the fund type of each code, and a record of every month, year or day already fetched and when each inflation series was last checked |
 | Never contains | Accounts, statement identifiers, quantities, activities, manual prices, API keys, or anything else from your database |
 
 Every refresh also writes the prices and rates it fetched into the cache. Each
@@ -166,6 +171,41 @@ can switch it off and use Twelve Data or manual prices instead.
 **Privacy.** Asking a provider for a symbol tells it that someone at your
 network address is interested in it, as asking TEFAS for a fund code does.
 Mizan only asks for symbols you assigned.
+
+## Inflation indices
+
+Real (inflation-adjusted) returns divide by the consumer price index of the
+**base currency**. Mizan knows one index per supported base currency:
+
+| Base currency | Index | Provider | Series |
+|---|---|---|---|
+| TRY | HICP Türkiye (harmonised index of consumer prices) | Eurostat | `prc_hicp_minr`, geo `TR`, 2015=100 |
+| EUR | Euro-area HICP, changing composition | Eurostat | `prc_hicp_minr`, geo `EA`, 2015=100 |
+| USD | CPI for all urban consumers (CPI-U), not seasonally adjusted | BLS | `CUUR0000SA0` |
+| GBP | CPI index | ONS | `D7BT`, 2015=100 |
+
+Other base currencies have no index, and real returns say so.
+
+- **Only the base currency's series is fetched**, during a refresh, from the
+  month before your first activity onward. Months already cached are not
+  requested again, except the last three, which are re-read for revisions.
+- **At most once a day:** a series is not requested again within 24 hours,
+  and not at all while it is complete up to last month.
+- **Changing the base currency** fetches nothing by itself; the next refresh
+  fetches the new series. Until then real returns say the index has not been
+  downloaded yet.
+- **No key, honest requests:** all three providers are public and keyless.
+  A failed request keeps the cached values and is reported in the last
+  refresh; the other providers carry on.
+
+**HICP Türkiye is not TÜFE.** The figure usually quoted for Turkish inflation
+is TÜİK's TÜFE, which is only published through keyed or less machine-readable
+channels. HICP Türkiye is the harmonised index TÜİK compiles for Eurostat from
+the same price collection; it follows TÜFE closely but is not identical.
+Settings and Performance always label it "HICP Türkiye".
+
+How monthly values become a daily index is described in
+[returns.md](returns.md#real-returns).
 
 ## Manual prices
 
@@ -310,6 +350,37 @@ then kept. A recorded file is in `crates/mizan-market/tests/fixtures/tcmb/`.
 Recorded responses are in `crates/mizan-market/tests/fixtures/yahoo/` and
 `crates/mizan-market/tests/fixtures/twelvedata/`. Stooq, a common keyless
 source, now answers with a browser check and is not used.
+
+## Inflation API notes (verified 2026-11-02)
+
+**Eurostat:**
+- `GET https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_minr?format=JSON&geo={EA|TR}&unit=I15&coicop18=TOTAL&sinceTimePeriod=YYYY-MM`.
+- The answer is JSON-stat 2.0: `id[]` and `size[]` list the dimensions,
+  `dimension.time.category.index` maps `YYYY-MM` to a position, and `value{}`
+  holds numbers keyed by the flat position (the last dimension varies
+  fastest). Months without data are absent.
+- Errors are `{"error":[{"status", "label"}]}`. An unknown geo returns no values.
+- The older dataset `prc_hicp_midx` stopped at December 2025, when Eurostat
+  moved to the 2018 classification of consumption (`coicop18`).
+
+**BLS (public API v1):**
+- `POST https://api.bls.gov/publicAPI/v1/timeseries/data/` with
+  `{"seriesid":["CUUR0000SA0"],"startyear":"YYYY","endyear":"YYYY"}`; at most 10
+  years per request and 25 requests a day without a key.
+- `Results.series[0].data[]` holds `{year, period, value}`, newest first.
+  `M01`–`M12` are months, `M13` the annual average (skipped). A value of `-`
+  means nothing was published (October 2025, when US CPI was not collected);
+  that month is skipped and the daily index interpolates across it.
+- Failures come back as `status: "REQUEST_NOT_PROCESSED"` with a `message[]`.
+
+**ONS:**
+- `GET https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7bt/mm23/data`
+  returns the whole series; `months[]` holds `{date: "2026 SEP", value: "144.1"}`.
+- This is the website's own data endpoint rather than a versioned API; if its
+  format changes, the refresh reports ONS as failed and cached values stay.
+
+Recorded responses are in `crates/mizan-market/tests/fixtures/eurostat/`,
+`bls/` and `ons/`.
 
 ## Tests
 

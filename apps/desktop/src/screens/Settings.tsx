@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PageHeader } from "../app/Layout";
 import { errorMessage } from "../bridge/api";
+import type { InflationStatusView } from "../bridge/generated/InflationStatusView";
 import type { ProviderView } from "../bridge/generated/ProviderView";
 import type { RefreshReport } from "../bridge/generated/RefreshReport";
 import type { SourceProgress } from "../bridge/generated/SourceProgress";
@@ -147,6 +148,30 @@ function PriceHistory() {
   );
 }
 
+/** The inflation index behind real returns, for the current base currency. */
+export function inflationText(i: InflationStatusView): string {
+  if (!i.label) return i.note ?? "";
+  return i.through ? `${i.label} · through ${i.through}` : i.label;
+}
+
+function InflationStatus({ i }: { i: InflationStatusView }) {
+  return (
+    <div data-testid="inflation-status" style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 13 }}>
+      <span>
+        <span style={{ color: "var(--text-secondary)" }}>Inflation index for real returns: </span>
+        {inflationText(i)}
+      </span>
+      {i.label && i.note && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{i.note}</span>}
+      {i.last_checked && (
+        <span style={{ fontSize: 12, color: i.last_check_failed ? "var(--warn-strong)" : "var(--text-muted)" }}>
+          Last checked {when(i.last_checked)}
+          {i.last_check_failed ? " (failed; see the last refresh)" : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function Settings() {
   const { data } = useSettings();
   const m = useSettingsMutations();
@@ -170,6 +195,7 @@ export function Settings() {
           </select>
         </label>
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Totals are converted with TCMB forex buying rates through TRY.</span>
+        <InflationStatus i={data.inflation} />
       </Card>
       <Card title="Market data providers" aside={<RefreshButton />}>
         <DataTable label="Market data providers" minWidth={560}>

@@ -16,6 +16,13 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "since_start", label: "Since start" },
 ];
 
+type Mode = "nominal" | "real";
+
+const MODES: { value: Mode; label: string }[] = [
+  { value: "nominal", label: "Nominal" },
+  { value: "real", label: "Real" },
+];
+
 const muted = { fontSize: 12, color: "var(--text-muted)" } as const;
 
 function estimateText(f: Figure): string | null {
@@ -73,26 +80,45 @@ function BenchmarkPicker({ view }: { view: PerformanceView }) {
   );
 }
 
-function Returns({ view }: { view: PerformanceView }) {
+function Returns({ view, mode }: { view: PerformanceView; mode: Mode }) {
   const r = view.returns;
   const bench = r.benchmark;
+  const real = mode === "real";
   const excludedNote = r.excluded.length ? `Excludes ${r.excluded.join("; ")}` : null;
+  if (real && view.inflation.unavailable) {
+    return (
+      <Card title="Real returns" label="Real returns">
+        <EmptyState title="Real returns are not available" message={`Real returns are not available: ${view.inflation.unavailable}.`} />
+      </Card>
+    );
+  }
+  const twr = real ? r.real_twr : r.twr;
+  const mwr = real ? r.real_mwr : r.mwr;
+  const benchFigure = bench && (real ? bench.real : bench.figure);
+  const portfolioPoint = (g: (typeof r.growth)[number]) => (real ? g.portfolio_real : g.portfolio);
+  const benchPoint = (g: (typeof r.growth)[number]) => (real ? g.benchmark_real : g.benchmark);
+  const inflationNote = real && view.inflation.through ? `After inflation · ${view.inflation.label} through ${view.inflation.through}${r.real_provisional ? " · provisional" : ""}` : null;
   return (
     <>
+      {inflationNote && (
+        <p style={{ ...muted, margin: 0 }} data-testid="inflation-note">
+          {inflationNote}
+        </p>
+      )}
       <section aria-label="Returns" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 14 }}>
         <Card title="Time-weighted return" label="Time-weighted return">
-          <FigureText figure={r.twr} size={26} />
+          <FigureText figure={twr} size={26} />
           <span style={muted}>How the investments did, independent of deposits and withdrawals</span>
           {excludedNote && <span style={{ fontSize: 12, color: "var(--warn-strong)" }}>{excludedNote}</span>}
         </Card>
         <Card title="Money-weighted return" label="Money-weighted return">
-          <FigureText figure={r.mwr} size={26} />
+          <FigureText figure={mwr} size={26} />
           <span style={muted}>Your return, including the timing of your deposits and withdrawals</span>
         </Card>
         <Card title="Benchmark" label="Benchmark" aside={<BenchmarkPicker view={view} />}>
-          {bench ? (
+          {bench && benchFigure ? (
             <>
-              <FigureText figure={bench.figure} size={26} />
+              <FigureText figure={benchFigure} size={26} />
               <span style={muted}>{bench.name}</span>
             </>
           ) : (
@@ -100,17 +126,17 @@ function Returns({ view }: { view: PerformanceView }) {
           )}
         </Card>
       </section>
-      <Card title="Growth" label="Growth chart" aside={<span style={muted}>Time-weighted, 100 at the start · {view.base_currency}</span>}>
+      <Card title="Growth" label="Growth chart" aside={<span style={muted}>Time-weighted{real ? ", after inflation" : ""}, 100 at the start · {view.base_currency}</span>}>
         {r.growth.length === 0 ? (
-          <EmptyState title="Nothing to show" message={r.twr.reason ? `Not available: ${r.twr.reason}.` : "No value history for this period."} />
+          <EmptyState title="Nothing to show" message={twr.reason ? `Not available: ${twr.reason}.` : "No value history for this period."} />
         ) : (
           <LineChart
             label="Growth"
             dates={r.growth.map((g) => g.date)}
             series={[
-              { name: "Portfolio", values: r.growth.map((g) => (g.portfolio === null ? null : Number(g.portfolio))), labels: r.growth.map((g) => g.portfolio) },
-              ...(bench && r.growth.some((g) => g.benchmark !== null)
-                ? [{ name: bench.name, values: r.growth.map((g) => (g.benchmark === null ? null : Number(g.benchmark))), labels: r.growth.map((g) => g.benchmark) }]
+              { name: "Portfolio", values: r.growth.map((g) => { const v = portfolioPoint(g); return v === null ? null : Number(v); }), labels: r.growth.map(portfolioPoint) },
+              ...(bench && r.growth.some((g) => benchPoint(g) !== null)
+                ? [{ name: bench.name, values: r.growth.map((g) => { const v = benchPoint(g); return v === null ? null : Number(v); }), labels: r.growth.map(benchPoint) }]
                 : []),
             ]}
             format={(v) => v.toFixed(0)}
@@ -138,10 +164,10 @@ function Returns({ view }: { view: PerformanceView }) {
                 <td style={{ fontWeight: 500 }}>{a.name}</td>
                 <td style={{ ...muted, fontSize: 13 }}>{sinceLabel(a.from, a.clamped, r.to)}</td>
                 <td style={{ textAlign: "right" }}>
-                  <FigureText figure={a.twr} />
+                  <FigureText figure={real ? a.real_twr : a.twr} />
                 </td>
                 <td style={{ textAlign: "right" }}>
-                  <FigureText figure={a.mwr} />
+                  <FigureText figure={real ? a.real_mwr : a.mwr} />
                 </td>
               </tr>
             ))}
@@ -155,6 +181,7 @@ function Returns({ view }: { view: PerformanceView }) {
 export function Performance() {
   const { data } = useContributions();
   const [period, setPeriod] = useState<Period>("ytd");
+  const [mode, setMode] = useState<Mode>("nominal");
   const { data: perf } = usePerformance(period);
   if (!data) return <PageHeader title="Performance" />;
   const current = data.periods.find((p) => p.period === period);
@@ -172,9 +199,14 @@ export function Performance() {
       <PageHeader
         title="Performance"
         subtitle={`All accounts · ${range}`}
-        actions={<Segmented label="Period" value={period} onChange={setPeriod} options={PERIODS} />}
+        actions={
+          <>
+            <Segmented label="Returns" value={mode} onChange={setMode} options={MODES} />
+            <Segmented label="Period" value={period} onChange={setPeriod} options={PERIODS} />
+          </>
+        }
       />
-      {perf && <Returns view={perf} />}
+      {perf && <Returns view={perf} mode={mode} />}
       <Card title="Net contributions" label="Net contributions" aside={<span style={muted}>Deposits minus withdrawals; internal transfers excluded</span>}>
         <DataTable label="Net contributions" minWidth={520}>
           <thead>

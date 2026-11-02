@@ -8,4 +8,12 @@ portfolio: string | null,
 /**
  * Benchmark growth, 100 at the period start.
  */
-benchmark: string | null, };
+benchmark: string | null, 
+/**
+ * Portfolio growth after inflation, 100 at the period start.
+ */
+portfolio_real: string | null, 
+/**
+ * Benchmark growth after inflation, 100 at the period start.
+ */
+benchmark_real: string | null, };

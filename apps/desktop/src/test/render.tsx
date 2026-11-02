@@ -73,8 +73,12 @@ export const EMPTY = {
         needs_api_key: true,
         api_key_hint: null,
       },
+      { id: "eurostat", name: "Eurostat", supplies: "Inflation indices for TRY (HICP Türkiye) and EUR (euro-area HICP)", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
+      { id: "bls", name: "BLS", supplies: "US consumer price index (USD inflation) from the Bureau of Labor Statistics", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
+      { id: "ons", name: "ONS", supplies: "UK consumer price index (GBP inflation) from the Office for National Statistics", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
     ],
     last_report: null,
     refreshing: false,
+    inflation: { label: "HICP Türkiye (Eurostat)", through: null, last_checked: null, last_check_failed: false, note: "Not downloaded yet; the next refresh fetches it." },
   },
 };

@@ -45,7 +45,17 @@ impl Http for Fake {
             ),
         })
     }
-    fn post_json(&self, _url: &str, body: &str) -> Result<Response, HttpError> {
+    fn post_json(&self, url: &str, body: &str) -> Result<Response, HttpError> {
+        if url == bls::URL {
+            return Ok(Response {
+                status: 200,
+                body: std::fs::read_to_string(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/bls/cpi_2017_2026.json"
+                ))
+                .unwrap(),
+            });
+        }
         let v: serde_json::Value = serde_json::from_str(body).unwrap();
         let from = v["basTarih"].as_str().unwrap();
         let date = format!("{}-{}-{}", &from[..4], &from[4..6], &from[6..8]);
@@ -180,6 +190,14 @@ fn cache_contains_no_account_or_activity_data() {
             vec!["currency", "date", "try_per_unit", "source", "fetched_at"],
         ),
         (
+            "inflation_checks",
+            vec!["source", "series", "checked_at", "status"],
+        ),
+        (
+            "inflation_index",
+            vec!["source", "series", "month", "value", "fetched_at"],
+        ),
+        (
             "listed_prices",
             vec![
                 "source",
@@ -201,6 +219,11 @@ fn cache_contains_no_account_or_activity_data() {
     assert!(!values.is_empty());
     assert!(values.iter().any(|v| v == "SPY") && values.iter().any(|v| v == "MSFT"));
     assert!(!cache.listed_prices("yahoo", "SPY").unwrap().is_empty());
+    // The base currency's inflation index was fetched into the cache.
+    assert!(!cache
+        .inflation_index("bls", "CUUR0000SA0")
+        .unwrap()
+        .is_empty());
     let mut private: Vec<String> = vec!["9000001".into(), "Anadolu".into(), KEY.into()];
     for r in batch["records"].as_array().unwrap() {
         if let Some(q) = r["quantity"].as_str() {

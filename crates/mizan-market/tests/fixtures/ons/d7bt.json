@@ -1,0 +1,1116 @@
+{
+ "years": [
+  {
+   "date": "2023",
+   "value": "130.5",
+   "label": "2023",
+   "year": "2023",
+   "month": "",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2024-01-17T00:00:00.000Z"
+  },
+  {
+   "date": "2024",
+   "value": "133.9",
+   "label": "2024",
+   "year": "2024",
+   "month": "",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-01-15T00:00:00.000Z"
+  },
+  {
+   "date": "2025",
+   "value": "138.4",
+   "label": "2025",
+   "year": "2025",
+   "month": "",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-01-21T00:00:00.000Z"
+  }
+ ],
+ "quarters": [
+  {
+   "date": "2026 Q1",
+   "value": "140.2",
+   "label": "2026 Q1",
+   "year": "2026",
+   "month": "",
+   "quarter": "Q1",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-04-21T23:00:00.000Z"
+  },
+  {
+   "date": "2026 Q2",
+   "value": "142.3",
+   "label": "2026 Q2",
+   "year": "2026",
+   "month": "",
+   "quarter": "Q2",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-07-21T23:00:00.000Z"
+  },
+  {
+   "date": "2026 Q3",
+   "value": "143.6",
+   "label": "2026 Q3",
+   "year": "2026",
+   "month": "",
+   "quarter": "Q3",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-10-20T23:00:00.000Z"
+  }
+ ],
+ "months": [
+  {
+   "date": "2025 JAN",
+   "value": "135.4",
+   "label": "2025 JAN",
+   "year": "2025",
+   "month": "January",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-02-19T00:00:00.000Z"
+  },
+  {
+   "date": "2025 FEB",
+   "value": "136.0",
+   "label": "2025 FEB",
+   "year": "2025",
+   "month": "February",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-03-26T00:00:00.000Z"
+  },
+  {
+   "date": "2025 MAR",
+   "value": "136.5",
+   "label": "2025 MAR",
+   "year": "2025",
+   "month": "March",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-04-15T23:00:00.000Z"
+  },
+  {
+   "date": "2025 APR",
+   "value": "138.2",
+   "label": "2025 APR",
+   "year": "2025",
+   "month": "April",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-05-20T23:00:00.000Z"
+  },
+  {
+   "date": "2025 MAY",
+   "value": "138.4",
+   "label": "2025 MAY",
+   "year": "2025",
+   "month": "May",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-06-17T23:00:00.000Z"
+  },
+  {
+   "date": "2025 JUN",
+   "value": "138.9",
+   "label": "2025 JUN",
+   "year": "2025",
+   "month": "June",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-07-15T23:00:00.000Z"
+  },
+  {
+   "date": "2025 JUL",
+   "value": "139.0",
+   "label": "2025 JUL",
+   "year": "2025",
+   "month": "July",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-08-19T23:00:00.000Z"
+  },
+  {
+   "date": "2025 AUG",
+   "value": "139.3",
+   "label": "2025 AUG",
+   "year": "2025",
+   "month": "August",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-09-16T23:00:00.000Z"
+  },
+  {
+   "date": "2025 SEP",
+   "value": "139.3",
+   "label": "2025 SEP",
+   "year": "2025",
+   "month": "September",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-10-21T23:00:00.000Z"
+  },
+  {
+   "date": "2025 OCT",
+   "value": "139.8",
+   "label": "2025 OCT",
+   "year": "2025",
+   "month": "October",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-11-19T00:00:00.000Z"
+  },
+  {
+   "date": "2025 NOV",
+   "value": "139.5",
+   "label": "2025 NOV",
+   "year": "2025",
+   "month": "November",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2025-12-17T00:00:00.000Z"
+  },
+  {
+   "date": "2025 DEC",
+   "value": "140.1",
+   "label": "2025 DEC",
+   "year": "2025",
+   "month": "December",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-01-21T00:00:00.000Z"
+  },
+  {
+   "date": "2026 JAN",
+   "value": "139.5",
+   "label": "2026 JAN",
+   "year": "2026",
+   "month": "January",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-02-18T00:00:00.000Z"
+  },
+  {
+   "date": "2026 FEB",
+   "value": "140.1",
+   "label": "2026 FEB",
+   "year": "2026",
+   "month": "February",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-03-20T00:00:00.000Z"
+  },
+  {
+   "date": "2026 MAR",
+   "value": "141.0",
+   "label": "2026 MAR",
+   "year": "2026",
+   "month": "March",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-04-21T23:00:00.000Z"
+  },
+  {
+   "date": "2026 APR",
+   "value": "142.1",
+   "label": "2026 APR",
+   "year": "2026",
+   "month": "April",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-05-19T23:00:00.000Z"
+  },
+  {
+   "date": "2026 MAY",
+   "value": "142.4",
+   "label": "2026 MAY",
+   "year": "2026",
+   "month": "May",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-06-16T23:00:00.000Z"
+  },
+  {
+   "date": "2026 JUN",
+   "value": "142.5",
+   "label": "2026 JUN",
+   "year": "2026",
+   "month": "June",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-07-21T23:00:00.000Z"
+  },
+  {
+   "date": "2026 JUL",
+   "value": "142.9",
+   "label": "2026 JUL",
+   "year": "2026",
+   "month": "July",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-08-18T23:00:00.000Z"
+  },
+  {
+   "date": "2026 AUG",
+   "value": "143.6",
+   "label": "2026 AUG",
+   "year": "2026",
+   "month": "August",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-09-15T23:00:00.000Z"
+  },
+  {
+   "date": "2026 SEP",
+   "value": "144.1",
+   "label": "2026 SEP",
+   "year": "2026",
+   "month": "September",
+   "quarter": "",
+   "sourceDataset": "MM23",
+   "updateDate": "2026-10-20T23:00:00.000Z"
+  }
+ ],
+ "sourceDatasets": [],
+ "relatedDatasets": [
+  {
+   "uri": "/economy/inflationandpriceindices/datasets/consumerpriceindices"
+  }
+ ],
+ "relatedDocuments": [
+  {
+   "uri": "/economy/inflationandpriceindices/bulletins/consumerpriceinflation/latest"
+  }
+ ],
+ "relatedData": [
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/chzq"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7g7"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7oe"
+  }
+ ],
+ "versions": [
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v1",
+   "updateDate": "2015-12-15T00:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v1"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v2",
+   "updateDate": "2016-01-19T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v2"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v3",
+   "updateDate": "2016-01-19T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v3"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v4",
+   "updateDate": "2016-02-16T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v4"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v5",
+   "updateDate": "2016-03-22T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v5"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v6",
+   "updateDate": "2016-04-12T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v6"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v7",
+   "updateDate": "2016-05-17T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v7"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v8",
+   "updateDate": "2016-06-14T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v8"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v9",
+   "updateDate": "2016-07-19T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v9"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v10",
+   "updateDate": "2016-08-16T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v10"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v11",
+   "updateDate": "2016-09-13T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v11"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v12",
+   "updateDate": "2016-10-18T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v12"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v13",
+   "updateDate": "2016-11-15T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v13"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v14",
+   "updateDate": "2016-12-13T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v14"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v15",
+   "updateDate": "2017-01-17T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v15"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v16",
+   "updateDate": "2017-02-14T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v16"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v17",
+   "updateDate": "2017-03-21T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v17"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v18",
+   "updateDate": "2017-04-11T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v18"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v19",
+   "updateDate": "2017-05-16T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v19"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v20",
+   "updateDate": "2017-06-13T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v20"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v21",
+   "updateDate": "2017-07-18T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v21"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v22",
+   "updateDate": "2017-08-15T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v22"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v23",
+   "updateDate": "2017-09-12T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v23"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v24",
+   "updateDate": "2017-10-17T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v24"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v25",
+   "updateDate": "2017-11-14T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v25"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v26",
+   "updateDate": "2017-12-12T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v26"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v27",
+   "updateDate": "2018-01-16T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v27"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v28",
+   "updateDate": "2018-02-13T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v28"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v29",
+   "updateDate": "2018-03-20T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v29"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v30",
+   "updateDate": "2018-04-18T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v30"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v31",
+   "updateDate": "2018-05-23T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v31"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v32",
+   "updateDate": "2018-06-13T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v32"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v33",
+   "updateDate": "2018-07-18T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v33"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v34",
+   "updateDate": "2018-08-15T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v34"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v35",
+   "updateDate": "2018-09-19T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v35"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v36",
+   "updateDate": "2018-10-17T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v36"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v37",
+   "updateDate": "2018-11-14T08:22:13.085Z",
+   "correctionNotice": "",
+   "label": "v37"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v38",
+   "updateDate": "2018-12-19T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v38"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v39",
+   "updateDate": "2019-01-16T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v39"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v40",
+   "updateDate": "2019-02-13T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v40"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v41",
+   "updateDate": "2019-03-20T07:55:41.647Z",
+   "correctionNotice": "",
+   "label": "v41"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v42",
+   "updateDate": "2019-04-17T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v42"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v43",
+   "updateDate": "2019-05-22T06:34:19.407Z",
+   "correctionNotice": "",
+   "label": "v43"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v44",
+   "updateDate": "2019-06-19T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v44"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v45",
+   "updateDate": "2019-07-17T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v45"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v46",
+   "updateDate": "2019-08-14T07:07:31.311Z",
+   "correctionNotice": "",
+   "label": "v46"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v47",
+   "updateDate": "2019-09-18T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v47"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v48",
+   "updateDate": "2019-10-16T08:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v48"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v49",
+   "updateDate": "2019-11-13T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v49"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v50",
+   "updateDate": "2019-12-18T08:07:40.737Z",
+   "correctionNotice": "",
+   "label": "v50"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v51",
+   "updateDate": "2020-01-15T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v51"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v52",
+   "updateDate": "2020-02-19T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v52"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v53",
+   "updateDate": "2020-03-25T06:11:49.792Z",
+   "correctionNotice": "",
+   "label": "v53"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v54",
+   "updateDate": "2020-04-22T05:07:24.513Z",
+   "correctionNotice": "",
+   "label": "v54"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v55",
+   "updateDate": "2020-05-20T05:05:56.020Z",
+   "correctionNotice": "",
+   "label": "v55"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v56",
+   "updateDate": "2020-06-17T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v56"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v57",
+   "updateDate": "2020-07-15T05:19:51.609Z",
+   "correctionNotice": "",
+   "label": "v57"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v58",
+   "updateDate": "2020-08-19T05:08:43.252Z",
+   "correctionNotice": "",
+   "label": "v58"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v59",
+   "updateDate": "2020-09-16T05:10:22.689Z",
+   "correctionNotice": "",
+   "label": "v59"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v60",
+   "updateDate": "2020-10-21T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v60"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v61",
+   "updateDate": "2020-11-18T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v61"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v62",
+   "updateDate": "2020-12-07T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v62"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v63",
+   "updateDate": "2021-01-20T06:06:03.859Z",
+   "correctionNotice": "",
+   "label": "v63"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v64",
+   "updateDate": "2021-02-17T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v64"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v65",
+   "updateDate": "2021-03-24T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v65"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v66",
+   "updateDate": "2021-04-21T06:34:00.108Z",
+   "correctionNotice": "",
+   "label": "v66"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v67",
+   "updateDate": "2021-05-19T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v67"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v68",
+   "updateDate": "2021-06-16T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v68"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v69",
+   "updateDate": "2021-07-14T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v69"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v70",
+   "updateDate": "2021-08-18T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v70"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v71",
+   "updateDate": "2021-09-15T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v71"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v72",
+   "updateDate": "2021-10-20T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v72"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v73",
+   "updateDate": "2021-11-17T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v73"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v74",
+   "updateDate": "2021-12-15T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v74"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v75",
+   "updateDate": "2022-01-19T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v75"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v76",
+   "updateDate": "2022-02-16T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v76"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v77",
+   "updateDate": "2022-03-23T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v77"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v78",
+   "updateDate": "2022-04-13T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v78"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v79",
+   "updateDate": "2022-05-18T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v79"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v80",
+   "updateDate": "2022-06-22T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v80"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v81",
+   "updateDate": "2022-07-20T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v81"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v82",
+   "updateDate": "2022-08-17T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v82"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v83",
+   "updateDate": "2022-09-14T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v83"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v84",
+   "updateDate": "2022-10-19T10:24:12.151Z",
+   "correctionNotice": "",
+   "label": "v84"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v85",
+   "updateDate": "2022-11-16T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v85"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v86",
+   "updateDate": "2022-12-14T09:30:00.000Z",
+   "correctionNotice": "",
+   "label": "v86"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v87",
+   "updateDate": "2023-01-18T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v87"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v88",
+   "updateDate": "2023-02-15T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v88"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v89",
+   "updateDate": "2023-03-22T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v89"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v90",
+   "updateDate": "2023-04-19T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v90"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v91",
+   "updateDate": "2023-05-24T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v91"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v92",
+   "updateDate": "2023-06-21T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v92"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v93",
+   "updateDate": "2023-07-19T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v93"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v94",
+   "updateDate": "2023-08-16T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v94"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v95",
+   "updateDate": "2023-09-20T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v95"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v96",
+   "updateDate": "2023-10-18T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v96"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v97",
+   "updateDate": "2023-11-15T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v97"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v98",
+   "updateDate": "2023-12-20T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v98"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v99",
+   "updateDate": "2024-01-17T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v99"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v100",
+   "updateDate": "2024-02-14T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v100"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v101",
+   "updateDate": "2024-03-20T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v101"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v102",
+   "updateDate": "2024-04-17T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v102"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v103",
+   "updateDate": "2024-05-22T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v103"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v104",
+   "updateDate": "2024-06-19T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v104"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v105",
+   "updateDate": "2024-07-17T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v105"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v106",
+   "updateDate": "2024-08-14T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v106"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v107",
+   "updateDate": "2024-09-18T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v107"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v108",
+   "updateDate": "2024-10-16T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v108"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v109",
+   "updateDate": "2024-11-20T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v109"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v110",
+   "updateDate": "2024-12-18T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v110"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v111",
+   "updateDate": "2025-01-15T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v111"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v112",
+   "updateDate": "2025-02-19T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v112"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v113",
+   "updateDate": "2025-03-26T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v113"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v114",
+   "updateDate": "2025-04-16T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v114"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v115",
+   "updateDate": "2025-05-21T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v115"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v116",
+   "updateDate": "2025-06-18T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v116"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v117",
+   "updateDate": "2025-07-16T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v117"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v118",
+   "updateDate": "2025-08-20T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v118"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v119",
+   "updateDate": "2025-09-17T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v119"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v120",
+   "updateDate": "2025-10-22T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v120"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v121",
+   "updateDate": "2025-11-19T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v121"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v122",
+   "updateDate": "2025-12-17T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v122"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v123",
+   "updateDate": "2026-01-21T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v123"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v124",
+   "updateDate": "2026-02-18T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v124"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v125",
+   "updateDate": "2026-03-25T07:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v125"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v126",
+   "updateDate": "2026-04-22T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v126"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v127",
+   "updateDate": "2026-05-20T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v127"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v128",
+   "updateDate": "2026-06-18T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v128"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v129",
+   "updateDate": "2026-07-22T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v129"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v130",
+   "updateDate": "2026-08-19T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v130"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v131",
+   "updateDate": "2026-09-16T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v131"
+  },
+  {
+   "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23/previous/v132",
+   "updateDate": "2026-10-21T06:00:00.000Z",
+   "correctionNotice": "",
+   "label": "v132"
+  }
+ ],
+ "type": "timeseries",
+ "uri": "/economy/inflationandpriceindices/timeseries/d7bt/mm23",
+ "description": {
+  "title": "CPI INDEX 00: ALL ITEMS 2015=100",
+  "contact": {
+   "email": "cpi@ons.gov.uk",
+   "name": "Consumer Price Inflation team",
+   "telephone": "Consumer Price Inflation Enquiries: +44 1633 456900. Consumer Price Inflation recorded message (available after 8am on release day): +44 808 196 1267"
+  },
+  "releaseDate": "2026-10-20T23:00:00.000Z",
+  "nextRelease": "18 November 2026",
+  "datasetId": "MM23",
+  "datasetUri": "/economy/inflationandpriceindices/datasets/consumerpriceindices",
+  "cdid": "D7BT",
+  "unit": "Index, base year = 100",
+  "preUnit": "",
+  "source": "",
+  "date": "2026 SEP",
+  "number": "144.1",
+  "keyNote": "Index, 2015 = 100",
+  "sampleSize": "0"
+ }
+}

@@ -125,8 +125,55 @@ both converted to the base currency. Without a price at the start it reads
 "not available: no price before" that date. The growth chart shows the
 portfolio's time-weighted growth and the benchmark's, both starting at 100.
 
+## Real returns
+
+The **Real** switch on Performance shows every figure after inflation in the
+base currency: time- and money-weighted returns for the portfolio and each
+account, the benchmark return and the growth chart. Nominal is the default.
+
+### Daily inflation index
+
+Inflation indices are monthly (see
+[market-data.md](market-data.md#inflation-indices)). Mizan places each month's
+value on the **15th** of that month and, for the days in between, interpolates
+geometrically:
+
+    I(d) = I(a) × (I(b) / I(a)) ^ ((d − a) / (b − a))
+
+where `a` and `b` are the 15ths around day `d`. With September at 100.00 and
+October at 102.00, 15 October is 102.00 and 30 September is
+100.00 × 1.02^(15/30) ≈ 100.995.
+
+- **Provisional:** indices are published two to six weeks after the month
+  ends. Days after the 15th of the latest published month keep its value and
+  are **provisional**; a real figure whose period ends then is labelled
+  "provisional", along with the month used, for example "through Sep 2026".
+- **Before the index starts** there is no value, and real returns for a
+  period starting earlier read "not available: no inflation index before" that
+  month. Shorter periods are still shown.
+
+### Formulas
+
+Let `I0` be the index at the end of the day before the period starts and `I1`
+the index on its last day.
+
+- **Real TWR** = (1 + TWR) × I0 / I1 − 1. This is exactly what linking daily
+  returns after dividing each day's value by that day's index gives.
+- **Real MWR**: the start value, every flow and the end value are first
+  divided by `I(d) / I0` for their day, then the money-weighted return is
+  solved as usual. A deposit of 10,000.00 that grows to 13,000.00 while the
+  index rises 30% has a real MWR of +0.00%.
+- **Real benchmark** = (1 + benchmark return) × I0 / I1 − 1.
+- **Growth chart:** each day's growth is divided by `I(d) / I0`, still 100 at
+  the start.
+
+Real figures carry the same estimate mark as their nominal ones. Examples:
++40.00% nominal with 30.00% inflation is +7.69% real; with 50.00% inflation it
+is −6.67%.
+
 ## Base currency
 
 All values and returns are in the base currency (Settings › Valuation).
 Changing it, a price source, a manual price, or imported activities recomputes
-everything from stored data, without a network request.
+everything from stored data, without a network request. Real returns always use
+the base currency's own inflation index.

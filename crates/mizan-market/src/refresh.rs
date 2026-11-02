@@ -14,6 +14,7 @@ use mizan_storage::{
 use serde::{Deserialize, Serialize};
 
 use crate::http::Http;
+use crate::inflation::{self, Plan};
 use crate::listed::{listed_provider, Close, ListedError, ListedProvider};
 use crate::{api_key, is_enabled, tcmb, tefas, twelvedata, yahoo, PROVIDERS};
 
@@ -371,6 +372,90 @@ fn refresh_tcmb(
     }
 }
 
+/// Earliest activity date in the database, if any.
+fn first_activity(store: &Store) -> Result<Option<Date>, StorageError> {
+    let mut first: Option<Date> = None;
+    for a in store.list_accounts()? {
+        for s in store.all_activities(a.id)? {
+            let d = s.record.date;
+            first = Some(first.map_or(d, |f| f.min(d)));
+        }
+    }
+    Ok(first)
+}
+
+fn parse_time(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|t| t.with_timezone(&chrono::Utc))
+}
+
+/// Refresh the inflation index of the base currency, if `id` supplies it.
+/// Values go to the history cache only; without a cache nothing is fetched.
+fn refresh_inflation(
+    store: &Store,
+    cache: Option<&mut HistoryCache>,
+    http: &dyn Http,
+    id: &str,
+    today: Date,
+    now: &str,
+) -> Result<SourceReport, StorageError> {
+    let base = crate::base_currency_code(store)?;
+    let idle = |m: String| Ok(report(id, SourceStatus::Idle, 0, vec![m]));
+    let Some(series) = inflation::series_for(&base) else {
+        return idle(format!("no inflation index for {base}"));
+    };
+    if series.source != id {
+        return idle(format!("not needed for base currency {base}"));
+    }
+    let Some(cache) = cache else {
+        return idle("history cache unavailable".into());
+    };
+    let cached: Vec<inflation::YearMonth> = cache
+        .inflation_index(series.source, series.id)?
+        .iter()
+        .filter_map(|v| inflation::YearMonth::parse(&v.month))
+        .collect();
+    let last_check = cache
+        .inflation_check(series.source, series.id)?
+        .and_then(|c| parse_time(&c.checked_at));
+    let Some(now_t) = parse_time(now) else {
+        return Err(StorageError::Invalid(format!("bad refresh time {now}")));
+    };
+    let from = match inflation::plan(&cached, last_check, first_activity(store)?, today, now_t) {
+        Plan::Skip(why) => return idle(format!("{}: {why}", series.label)),
+        Plan::Fetch { from } => from,
+    };
+    match inflation::fetch(series, http, from, today) {
+        Ok(values) => {
+            let rows: Vec<mizan_storage::CachedIndexValue> = values
+                .iter()
+                .map(|v| mizan_storage::CachedIndexValue {
+                    month: v.month.to_string(),
+                    value: v.value.to_string(),
+                })
+                .collect();
+            cache.commit_inflation(series.source, series.id, &rows, true, now)?;
+            let through = cache
+                .inflation_index(series.source, series.id)?
+                .last()
+                .and_then(|v| inflation::YearMonth::parse(&v.month))
+                .map(|m| format!("{} through {}", series.label, m.label()))
+                .unwrap_or_else(|| format!("{}: no values published", series.label));
+            Ok(report(id, SourceStatus::Ok, values.len(), vec![through]))
+        }
+        Err(e) => {
+            cache.commit_inflation(series.source, series.id, &[], false, now)?;
+            Ok(report(
+                id,
+                SourceStatus::Failed,
+                0,
+                vec![format!("{}: {e}", series.label)],
+            ))
+        }
+    }
+}
+
 /// Run one refresh. `now` is an RFC 3339 timestamp used for fetch times and the log.
 /// The clock is passed in to keep this testable. When a history cache is given,
 /// fetched prices and rates are also written to it; a cache failure is reported
@@ -392,6 +477,9 @@ pub fn refresh(
         let r = match p.id {
             tefas::SOURCE => refresh_tefas(store, cache.as_deref_mut(), http, today, now)?,
             tcmb::SOURCE => refresh_tcmb(store, cache.as_deref_mut(), http, now)?,
+            id if inflation::PROVIDERS.contains(&id) => {
+                refresh_inflation(store, cache.as_deref_mut(), http, id, today, now)?
+            }
             id => match listed_provider(id) {
                 Some(lp) => refresh_listed(store, cache.as_deref_mut(), http, lp, now)?,
                 None => continue,

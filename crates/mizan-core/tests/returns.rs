@@ -5,7 +5,8 @@ use mizan_core::returns::*;
 use mizan_core::*;
 use mizan_import::{parse_batch_value, Code, Date};
 use mizan_storage::{
-    CachedFundPrice, CachedListedPrice, CachedRate, HistoryCache, PriceRow, PriceSourceKind, Store,
+    CachedFundPrice, CachedIndexValue, CachedListedPrice, CachedRate, HistoryCache, PriceRow,
+    PriceSourceKind, Store,
 };
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
@@ -610,7 +611,14 @@ fn view(
 ) -> ReturnsView {
     let inputs = Inputs::load(store, cache).unwrap();
     let series = inputs.series(day(today));
-    returns_view(&series, &inputs.book, &inputs.base, bench, day(today))
+    returns_view(
+        &series,
+        &inputs.book,
+        &inputs.base,
+        bench,
+        &inputs.inflation,
+        day(today),
+    )
 }
 
 fn period(v: &ReturnsView, p: Period) -> &PeriodReturns {
@@ -676,7 +684,14 @@ fn transfer_between_own_accounts_is_no_portfolio_flow() {
         b.day(day("2026-02-02")).unwrap().internal_flow,
         d("5000.00")
     );
-    let v = returns_view(&series, &inputs.book, &inputs.base, None, day("2026-03-01"));
+    let v = returns_view(
+        &series,
+        &inputs.book,
+        &inputs.base,
+        None,
+        &inputs.inflation,
+        day("2026-03-01"),
+    );
     let ytd = period(&v, Period::Ytd);
     assert_eq!(ytd.twr.value.as_deref(), Some("+0.00%"));
     assert_eq!(ytd.mwr.value.as_deref(), Some("+0.00%"));
@@ -861,4 +876,176 @@ fn docs_worked_example_gives_the_documented_figures() {
     assert_eq!(all.twr.value.as_deref(), Some("+2.01%"));
     assert_eq!(all.mwr.value.as_deref(), Some("+2.26%"));
     assert_eq!(all.twr.estimated_days, 0);
+}
+
+// ---- real (inflation-adjusted) returns ----
+
+/// A TRY index cache with the given monthly values.
+fn index_cache(values: &[(&str, &str)]) -> HistoryCache {
+    let mut c = HistoryCache::open_in_memory().unwrap();
+    let rows: Vec<CachedIndexValue> = values
+        .iter()
+        .map(|(m, v)| CachedIndexValue {
+            month: m.to_string(),
+            value: v.to_string(),
+        })
+        .collect();
+    c.commit_inflation("eurostat", "TR:I15", &rows, true, "t")
+        .unwrap();
+    c
+}
+
+/// 10000.00 TRY deposited and invested in a fund at 1.00 on 2025-01-15, worth
+/// `end_price` on 2026-10-15. The index is flat into the first day (100), then
+/// reaches `end_index` on 2026-10-15.
+fn real_case(end_price: &str, end_index: &str) -> ReturnsView {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        "R",
+        vec![
+            json!({"kind": "deposit", "date": "2025-01-15", "net_cash": money("10000.00", "TRY")}),
+            json!({"kind": "buy", "date": "2025-01-15", "instrument": fund("AFT"), "quantity": "10000", "net_cash": money("10000.00", "TRY")}),
+        ],
+    );
+    let a = asset_id(&s, "AFT");
+    provider_price(&mut s, a, "2025-01-15", "1.00");
+    provider_price(&mut s, a, "2026-10-15", end_price);
+    let cache = index_cache(&[
+        ("2024-12", "100"),
+        ("2025-01", "100"),
+        ("2026-10", end_index),
+    ]);
+    view(&s, Some(&cache), None, "2026-10-15")
+}
+
+#[test]
+fn real_return_after_inflation_gain() {
+    let v = real_case("1.40", "130");
+    let all = period(&v, Period::SinceStart);
+    assert_eq!(all.twr.value.as_deref(), Some("+40.00%"));
+    assert_eq!(all.real_twr.value.as_deref(), Some("+7.69%"));
+    assert!(all.real_twr.annualized.is_some(), "longer than a year");
+    assert_eq!(all.accounts[0].real_twr.value.as_deref(), Some("+7.69%"));
+    assert!(!all.real_provisional);
+    assert_eq!(
+        v.inflation.label.as_deref(),
+        Some("HICP Türkiye (Eurostat)")
+    );
+    assert_eq!(v.inflation.through.as_deref(), Some("Oct 2026"));
+    assert_eq!(v.inflation.unavailable, None);
+    let last = all.growth.last().unwrap();
+    assert_eq!(last.portfolio.as_deref(), Some("140.00"));
+    assert_eq!(last.portfolio_real.as_deref(), Some("107.69"));
+}
+
+#[test]
+fn real_loss_despite_nominal_gain() {
+    let v = real_case("1.40", "150");
+    let all = period(&v, Period::SinceStart);
+    assert_eq!(all.real_twr.value.as_deref(), Some("−6.67%"));
+}
+
+#[test]
+fn deposit_that_kept_pace_with_inflation_has_no_real_return() {
+    let v = real_case("1.30", "130");
+    let all = period(&v, Period::SinceStart);
+    assert_eq!(all.real_mwr.value.as_deref(), Some("+0.00%"));
+    assert_eq!(all.real_twr.value.as_deref(), Some("+0.00%"));
+    assert_eq!(all.accounts[0].real_mwr.value.as_deref(), Some("+0.00%"));
+}
+
+#[test]
+fn index_starting_after_the_period_start_reads_not_available() {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        "R",
+        vec![json!({"kind": "deposit", "date": "2019-04-02", "net_cash": money("1000.00", "TRY")})],
+    );
+    let cache = index_cache(&[("2021-05", "100"), ("2026-10", "300")]);
+    let v = view(&s, Some(&cache), None, "2026-11-02");
+    let all = period(&v, Period::SinceStart);
+    assert_eq!(
+        all.real_twr.reason.as_deref(),
+        Some("no inflation index before May 2021")
+    );
+    assert!(all.twr.value.is_some(), "nominal stays shown");
+    let y = period(&v, Period::Last12Months);
+    assert!(y.real_twr.value.is_some());
+    assert!(
+        y.real_provisional,
+        "after the 15th of the last published month"
+    );
+}
+
+#[test]
+fn real_figures_keep_the_estimate_mark() {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        "E",
+        vec![
+            json!({"kind": "deposit", "date": "2025-12-01", "net_cash": money("1000.00", "TRY")}),
+            json!({"kind": "buy", "date": "2026-01-01", "instrument": fund("XYZ"), "quantity": "100", "net_cash": money("100.00", "TRY")}),
+        ],
+    );
+    let cache = index_cache(&[("2025-10", "100"), ("2026-01", "110")]);
+    let v = view(&s, Some(&cache), None, "2026-02-09");
+    let ytd = period(&v, Period::Ytd);
+    assert_eq!(ytd.twr.estimated_days, 40);
+    assert_eq!(ytd.real_twr.estimated_days, 40);
+    assert_eq!(ytd.real_mwr.estimated_days, 40);
+}
+
+#[test]
+fn unsupported_or_missing_index_makes_real_unavailable() {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        "R",
+        vec![json!({"kind": "deposit", "date": "2026-01-02", "net_cash": money("1000.00", "TRY")})],
+    );
+    s.set_setting("base_currency", "CHF").unwrap();
+    let cache = index_cache(&[("2025-10", "100")]);
+    let v = view(&s, Some(&cache), None, "2026-02-09");
+    assert_eq!(
+        v.inflation.unavailable.as_deref(),
+        Some("no inflation index for CHF")
+    );
+
+    // Switching to a base without a cached index needs no network: the engine
+    // only reads the cache it is given.
+    s.set_setting("base_currency", "GBP").unwrap();
+    let v = view(&s, Some(&cache), None, "2026-02-09");
+    assert_eq!(
+        v.inflation.unavailable.as_deref(),
+        Some("the GBP inflation index has not been downloaded yet")
+    );
+}
+
+#[test]
+fn real_benchmark_matching_inflation_is_zero() {
+    let mut s = Store::open_in_memory().unwrap();
+    let b = fund_benchmark(&mut s, &[("2025-12-31", "1.00"), ("2026-10-15", "1.18")]);
+    // Index 100 through the year start, 118 on 2026-10-15.
+    let cache = index_cache(&[
+        ("2025-11", "100"),
+        ("2025-12", "100"),
+        ("2026-01", "100"),
+        ("2026-10", "118"),
+    ]);
+    let v = view(&s, Some(&cache), Some(&b), "2026-10-15");
+    let ytd = period(&v, Period::Ytd);
+    let bench = ytd.benchmark.as_ref().unwrap();
+    assert_eq!(bench.figure.value.as_deref(), Some("+18.00%"));
+    assert_eq!(bench.real.value.as_deref(), Some("+0.00%"));
+    assert_eq!(
+        ytd.growth.last().unwrap().benchmark_real.as_deref(),
+        Some("100.00")
+    );
 }

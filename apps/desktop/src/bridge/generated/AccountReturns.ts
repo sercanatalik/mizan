@@ -9,4 +9,12 @@ from: string,
 /**
  * The period started before the account's first activity.
  */
-clamped: boolean, twr: Figure, mwr: Figure, };
+clamped: boolean, twr: Figure, mwr: Figure, 
+/**
+ * Inflation-adjusted time-weighted return.
+ */
+real_twr: Figure, 
+/**
+ * Inflation-adjusted money-weighted return.
+ */
+real_mwr: Figure, };

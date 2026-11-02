@@ -3,6 +3,7 @@
 use std::sync::atomic::Ordering;
 
 use mizan_core::portfolio::Period;
+use mizan_core::returns::view::InflationView;
 use mizan_core::returns::{
     returns_view, value_history, Benchmark, Inputs, PeriodReturns, ReturnsView, ValueHistory,
 };
@@ -29,6 +30,8 @@ pub struct BenchmarkOption {
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct PerformanceView {
     pub base_currency: String,
+    /// The inflation index behind the real figures.
+    pub inflation: InflationView,
     pub returns: PeriodReturns,
     /// Assets with stored prices that can be the benchmark.
     pub benchmark_options: Vec<BenchmarkOption>,
@@ -97,6 +100,7 @@ fn compute(state: &AppState, today: Date, generation: u64) -> Result<Computed, A
             &inputs.book,
             &inputs.base,
             benchmark.as_ref(),
+            &inputs.inflation,
             today,
         ),
         history: value_history(&series, &inputs.base, today),
@@ -133,6 +137,7 @@ pub fn performance(
         .expect("every period is computed");
     Ok(PerformanceView {
         base_currency: c.returns.base_currency.clone(),
+        inflation: c.returns.inflation.clone(),
         returns,
         benchmark_options: c.options.clone(),
         benchmark_asset_id: c.benchmark,

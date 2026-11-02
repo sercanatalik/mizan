@@ -29,7 +29,7 @@ test("lists built-in providers with switches and toggles one off", async () => {
   serve();
   renderApp("/settings");
   const rows = await screen.findAllByTestId("provider-row");
-  expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["TEFAS", "TCMB", "Yahoo Finance", "Twelve Data"]);
+  expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["TEFAS", "TCMB", "Yahoo Finance", "Twelve Data", "Eurostat", "BLS", "ONS"]);
   expect(rows[2]).toHaveTextContent("unofficial source");
   expect(rows[3]).toHaveTextContent("the free plan covers US listings");
   expect(rows[0]).toHaveTextContent("Turkish investment and pension fund prices");
@@ -181,4 +181,40 @@ test("idle listed history explains why", async () => {
   renderApp("/settings");
   const rows = await screen.findAllByTestId("history-row");
   expect(rows[2]).toHaveTextContent("no asset priced from Yahoo Finance has activities yet");
+});
+
+test("inflation index status: cached, provider off, unsupported currency", async () => {
+  serve({
+    cmd_settings: {
+      ...EMPTY.cmd_settings,
+      base_currency: "EUR",
+      inflation: { label: "Euro-area HICP (Eurostat)", through: "Sep 2026", last_checked: "2026-11-02T10:00:00Z", last_check_failed: false, note: null },
+    },
+  });
+  const { unmount } = renderApp("/settings");
+  const status = await screen.findByTestId("inflation-status");
+  expect(status).toHaveTextContent("Euro-area HICP (Eurostat) · through Sep 2026");
+  expect(status).toHaveTextContent("Last checked 2026-11-02 10:00 UTC");
+  unmount();
+
+  serve({
+    cmd_settings: {
+      ...EMPTY.cmd_settings,
+      base_currency: "USD",
+      inflation: { label: "US CPI-U (BLS)", through: "Sep 2026", last_checked: null, last_check_failed: false, note: "US CPI-U is not refreshed because BLS is off; cached values are still used." },
+    },
+  });
+  const second = renderApp("/settings");
+  expect(await screen.findByTestId("inflation-status")).toHaveTextContent("US CPI-U is not refreshed because BLS is off; cached values are still used.");
+  second.unmount();
+
+  serve({
+    cmd_settings: {
+      ...EMPTY.cmd_settings,
+      base_currency: "CHF",
+      inflation: { label: null, through: null, last_checked: null, last_check_failed: false, note: "No inflation index for CHF; real returns are not available." },
+    },
+  });
+  renderApp("/settings");
+  expect(await screen.findByTestId("inflation-status")).toHaveTextContent("No inflation index for CHF; real returns are not available.");
 });

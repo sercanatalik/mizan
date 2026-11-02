@@ -21,6 +21,7 @@ pub const HOME_DIR: &str = ".mizan";
 const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/history/0001_init.sql"),
     include_str!("../migrations/history/0002_listed.sql"),
+    include_str!("../migrations/history/0003_inflation.sql"),
 ];
 
 /// The folder for machine-wide Mizan data: `$MIZAN_HOME` when set and not
@@ -113,6 +114,22 @@ pub struct FetchedUnit {
     pub fund_prices: Vec<CachedFundPrice>,
     pub rates: Vec<CachedRate>,
     pub fetched_at: String,
+}
+
+/// One cached monthly value of an inflation index.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CachedIndexValue {
+    /// Month as `YYYY-MM`.
+    pub month: String,
+    pub value: String,
+}
+
+/// The last request for an inflation series.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InflationCheck {
+    pub checked_at: String,
+    /// The request succeeded.
+    pub ok: bool,
 }
 
 pub struct HistoryCache {
@@ -239,7 +256,67 @@ impl HistoryCache {
         Ok(())
     }
 
+    /// Store an inflation series' monthly values and record the request, in one
+    /// transaction. A failed request records only the check; values stay as they were.
+    pub fn commit_inflation(
+        &mut self,
+        source: &str,
+        series: &str,
+        values: &[CachedIndexValue],
+        ok: bool,
+        checked_at: &str,
+    ) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        for v in values {
+            tx.execute(
+                "INSERT INTO inflation_index (source, series, month, value, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(source, series, month) DO UPDATE SET
+                    value = excluded.value, fetched_at = excluded.fetched_at",
+                params![source, series, v.month, v.value, checked_at],
+            )?;
+        }
+        tx.execute(
+            "INSERT INTO inflation_checks (source, series, checked_at, status) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(source, series) DO UPDATE SET
+                checked_at = excluded.checked_at, status = excluded.status",
+            params![source, series, checked_at, if ok { "ok" } else { "failed" }],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
     // ---- reads ----
+
+    /// Every cached month of an inflation series, oldest first.
+    pub fn inflation_index(&self, source: &str, series: &str) -> Result<Vec<CachedIndexValue>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT month, value FROM inflation_index WHERE source = ?1 AND series = ?2 ORDER BY month",
+        )?;
+        let rows = stmt.query_map(params![source, series], |r| {
+            Ok(CachedIndexValue {
+                month: r.get(0)?,
+                value: r.get(1)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// The last request for an inflation series, if any.
+    pub fn inflation_check(&self, source: &str, series: &str) -> Result<Option<InflationCheck>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT checked_at, status FROM inflation_checks WHERE source = ?1 AND series = ?2",
+                params![source, series],
+                |r| {
+                    Ok(InflationCheck {
+                        checked_at: r.get(0)?,
+                        ok: r.get::<_, String>(1)? == "ok",
+                    })
+                },
+            )
+            .optional()?)
+    }
 
     /// Every cached close of a listed symbol from one provider, oldest first.
     pub fn listed_prices(&self, source: &str, symbol: &str) -> Result<Vec<CachedListedPrice>> {

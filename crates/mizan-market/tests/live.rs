@@ -1,4 +1,4 @@
-//! Live checks against TEFAS and TCMB. Ignored by default; CI never runs them.
+//! Live checks against the built-in providers. Ignored by default; CI never runs them.
 //! Run manually: `cargo test -p mizan-market --test live -- --ignored`
 
 use std::collections::BTreeSet;
@@ -48,4 +48,28 @@ fn yahoo_returns_recent_closes_and_history_across_a_split() {
     let span = yahoo::fetch_span(&http, "AAPL", d, today()).unwrap();
     let c = span.iter().find(|c| c.date == d).expect("2020-08-28 close");
     assert!(c.value > rust_decimal::Decimal::from(450), "{}", c.value);
+}
+
+#[test]
+#[ignore = "network"]
+fn inflation_indices_are_published_for_every_supported_currency() {
+    use mizan_market::inflation::{self, YearMonth, SERIES};
+    let http = ReqwestHttp::new().unwrap();
+    let from = YearMonth::of(today().0).shift(-14);
+    for s in SERIES {
+        let v = inflation::fetch(&s, &http, from, today())
+            .unwrap_or_else(|e| panic!("{}: {e}", s.full_label()));
+        let last = v
+            .last()
+            .unwrap_or_else(|| panic!("{}: no values", s.full_label()));
+        assert!(v.len() >= 10, "{}: only {} months", s.full_label(), v.len());
+        assert!(
+            last.month >= YearMonth::of(today().0).shift(-3),
+            "{}: latest is {}",
+            s.full_label(),
+            last.month
+        );
+        eprintln!("{} {} = {}", s.full_label(), last.month, last.value);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
 }

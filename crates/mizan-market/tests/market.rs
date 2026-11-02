@@ -91,7 +91,18 @@ const EMPTY: &str =
 #[test]
 fn registry_lists_built_in_providers_enabled_by_default() {
     let ids: Vec<&str> = PROVIDERS.iter().map(|p| p.id).collect();
-    assert_eq!(ids, vec!["tefas", "tcmb", "yahoo", "twelvedata"]);
+    assert_eq!(
+        ids,
+        vec![
+            "tefas",
+            "tcmb",
+            "yahoo",
+            "twelvedata",
+            "eurostat",
+            "bls",
+            "ons"
+        ]
+    );
     let mut s = Store::open_in_memory().unwrap();
     assert!(ids.iter().all(|id| is_enabled(&s, id)));
     set_enabled(&mut s, "tefas", false).unwrap();

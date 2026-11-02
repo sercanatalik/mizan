@@ -1,13 +1,17 @@
 //! Market data for Mizan: built-in providers (TEFAS fund prices, TCMB exchange
-//! rates, Yahoo Finance and Twelve Data listed-asset closes) and the refresh
-//! that stores their results.
+//! rates, Yahoo Finance and Twelve Data listed-asset closes, and Eurostat, BLS
+//! and ONS inflation indices) and the refresh that stores their results.
 //!
 //! This is the only crate that touches the network, and only inside
 //! [`refresh`]. Everything else reads stored prices and rates.
 
 pub mod backfill;
+pub mod bls;
+pub mod eurostat;
 pub mod http;
+pub mod inflation;
 pub mod listed;
+pub mod ons;
 pub mod refresh;
 pub mod tcmb;
 pub mod tefas;
@@ -26,7 +30,7 @@ pub struct ProviderInfo {
 }
 
 /// Built-in providers, enabled by default; each can be turned off in Settings.
-pub const PROVIDERS: [ProviderInfo; 4] = [
+pub const PROVIDERS: [ProviderInfo; 7] = [
     ProviderInfo {
         id: tefas::SOURCE,
         name: "TEFAS",
@@ -47,6 +51,21 @@ pub const PROVIDERS: [ProviderInfo; 4] = [
         id: twelvedata::SOURCE,
         name: "Twelve Data",
         supplies: "Stock and ETF prices with your free API key; the free plan covers US listings",
+    },
+    ProviderInfo {
+        id: eurostat::SOURCE,
+        name: "Eurostat",
+        supplies: "Inflation indices for TRY (HICP Türkiye) and EUR (euro-area HICP)",
+    },
+    ProviderInfo {
+        id: bls::SOURCE,
+        name: "BLS",
+        supplies: "US consumer price index (USD inflation) from the Bureau of Labor Statistics",
+    },
+    ProviderInfo {
+        id: ons::SOURCE,
+        name: "ONS",
+        supplies: "UK consumer price index (GBP inflation) from the Office for National Statistics",
     },
 ];
 

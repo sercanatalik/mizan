@@ -30,6 +30,7 @@ function view(period: Period, extra: Partial<PerformanceView["returns"]> = {}, t
     base_currency: "TRY",
     benchmark_options: [{ asset_id: 7, name: "AFT · Ak Portföy Yeni Teknolojiler" }],
     benchmark_asset_id: null,
+    inflation: { label: "HICP Türkiye (Eurostat)", through: "Sep 2026", unavailable: null },
     ...top,
     returns: {
       period,
@@ -38,15 +39,18 @@ function view(period: Period, extra: Partial<PerformanceView["returns"]> = {}, t
       to: "2026-11-01",
       twr: fig("+12.34%"),
       mwr: fig("+11.00%"),
+      real_twr: fig("−8.10%"),
+      real_mwr: fig("−9.05%"),
+      real_provisional: true,
       benchmark: null,
       accounts: [
-        { account_id: 1, name: "Interactive Brokers", from: "2026-01-01", clamped: false, twr: fig("+12.34%"), mwr: fig("+11.00%") },
-        { account_id: 2, name: "Pension", from: "2026-08-14", clamped: true, twr: fig("−1.50%"), mwr: fig("−1.20%") },
+        { account_id: 1, name: "Interactive Brokers", from: "2026-01-01", clamped: false, twr: fig("+12.34%"), mwr: fig("+11.00%"), real_twr: fig("−8.10%"), real_mwr: fig("−9.05%") },
+        { account_id: 2, name: "Pension", from: "2026-08-14", clamped: true, twr: fig("−1.50%"), mwr: fig("−1.20%"), real_twr: fig("−6.40%"), real_mwr: fig("−6.10%") },
       ],
       excluded: [],
       growth: [
-        { date: "2026-01-01", portfolio: "100.00", benchmark: null },
-        { date: "2026-11-01", portfolio: "112.34", benchmark: null },
+        { date: "2026-01-01", portfolio: "100.00", benchmark: null, portfolio_real: "100.00", benchmark_real: null },
+        { date: "2026-11-01", portfolio: "112.34", benchmark: null, portfolio_real: "91.90", benchmark_real: null },
       ],
       ...extra,
     },
@@ -98,7 +102,7 @@ test("an account without exchange rates reads not available and the card says it
   serve((p) =>
     view(p, {
       accounts: [
-        { account_id: 1, name: "Interactive Brokers", from: "2026-01-01", clamped: false, twr: fig(null, { reason: "exchange rates before 2025-01-02 are missing" }), mwr: fig(null, { reason: "exchange rates before 2025-01-02 are missing" }) },
+        { account_id: 1, name: "Interactive Brokers", from: "2026-01-01", clamped: false, twr: fig(null, { reason: "exchange rates before 2025-01-02 are missing" }), mwr: fig(null, { reason: "exchange rates before 2025-01-02 are missing" }), real_twr: fig(null, { reason: "exchange rates before 2025-01-02 are missing" }), real_mwr: fig(null, { reason: "exchange rates before 2025-01-02 are missing" }) },
       ],
       excluded: ["Interactive Brokers: exchange rates before 2025-01-02 are missing"],
     }),
@@ -123,7 +127,7 @@ test("choosing a benchmark saves it and shows its return and line", async () => 
       chosen = args?.asset_id as number | null;
       return Promise.resolve(undefined);
     }
-    if (cmd === "cmd_performance") return Promise.resolve(chosen === null ? view(args!.period as Period) : view(args!.period as Period, { benchmark: { asset_id: 7, name: "AFT", figure: fig("+18.00%") }, growth: [{ date: "2026-01-01", portfolio: "100.00", benchmark: "100.00" }, { date: "2026-11-01", portfolio: "112.34", benchmark: "118.00" }] }, { benchmark_asset_id: 7 }));
+    if (cmd === "cmd_performance") return Promise.resolve(chosen === null ? view(args!.period as Period) : view(args!.period as Period, { benchmark: { asset_id: 7, name: "AFT", figure: fig("+18.00%"), real: fig("−2.00%") }, growth: [{ date: "2026-01-01", portfolio: "100.00", benchmark: "100.00", portfolio_real: "100.00", benchmark_real: "100.00" }, { date: "2026-11-01", portfolio: "112.34", benchmark: "118.00", portfolio_real: "91.90", benchmark_real: "96.50" }] }, { benchmark_asset_id: 7 }));
     return invokeFrom({ ...EMPTY, cmd_contributions: contributions })(cmd, args);
   }) as typeof invoke);
   renderApp("/performance");
@@ -150,4 +154,43 @@ test("net contributions per account and total, switching periods", async () => {
 
   await userEvent.click(screen.getByRole("button", { name: "1Y" }));
   expect(screen.getByTestId("contribution-row")).toHaveTextContent("2025-11-02");
+});
+
+test("nominal by default; Real switches every figure and the chart, with the inflation note", async () => {
+  serve((p) =>
+    view(p, {
+      real_twr: fig("−8.10%", { estimated_days: 40 }),
+      twr: fig("+12.34%", { estimated_days: 40 }),
+      benchmark: { asset_id: 7, name: "AFT", figure: fig("+18.00%"), real: fig("−2.00%") },
+      growth: [
+        { date: "2026-01-01", portfolio: "100.00", benchmark: "100.00", portfolio_real: "100.00", benchmark_real: "100.00" },
+        { date: "2026-11-01", portfolio: "112.34", benchmark: "118.00", portfolio_real: "91.90", benchmark_real: "96.50" },
+      ],
+    }),
+  );
+  renderApp("/performance");
+  const twr = await screen.findByRole("region", { name: "Time-weighted return" });
+  expect(twr).toHaveTextContent("+12.34%");
+  expect(screen.getByRole("button", { name: "Nominal" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.queryByTestId("inflation-note")).not.toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("button", { name: "Real" }));
+  expect(screen.getByRole("region", { name: "Time-weighted return" })).toHaveTextContent("−8.10%");
+  expect(within(screen.getByRole("region", { name: "Time-weighted return" })).getByTestId("estimate")).toHaveTextContent("estimate · 40 days");
+  expect(screen.getByRole("region", { name: "Money-weighted return" })).toHaveTextContent("−9.05%");
+  expect(screen.getByRole("region", { name: "Benchmark" })).toHaveTextContent("−2.00%");
+  expect(screen.getAllByTestId("return-row")[1]).toHaveTextContent("−6.40%");
+  expect(screen.getByTestId("inflation-note")).toHaveTextContent("HICP Türkiye (Eurostat) through Sep 2026 · provisional");
+  const growth = screen.getByRole("region", { name: "Growth chart" });
+  expect(within(growth).getByRole("img")).toHaveAccessibleName(/Portfolio: 91\.90 at the end/);
+  expect(growth).toHaveTextContent("after inflation");
+});
+
+test("Real without an index shows the reason instead of figures", async () => {
+  serve((p) => view(p, {}, { base_currency: "CHF", inflation: { label: null, through: null, unavailable: "no inflation index for CHF" } }));
+  renderApp("/performance");
+  await screen.findByRole("region", { name: "Time-weighted return" });
+  await userEvent.click(screen.getByRole("button", { name: "Real" }));
+  expect(screen.getByRole("region", { name: "Real returns" })).toHaveTextContent("Real returns are not available: no inflation index for CHF.");
+  expect(screen.queryByRole("region", { name: "Time-weighted return" })).not.toBeInTheDocument();
 });

@@ -5,6 +5,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 
 use super::calc::{self, pct, Point, Rate};
+use super::inflation::{DailyIndex, Inflation};
 use super::pricebook::PriceBook;
 use super::series::AccountSeries;
 use crate::portfolio::{period_start, Period};
@@ -40,6 +41,14 @@ impl Figure {
         }
     }
 
+    /// Same as [`Figure::of`], keeping the estimate mark of a nominal figure.
+    fn real(rate: Result<Rate, String>, estimated_days: u32) -> Self {
+        match rate {
+            Ok(r) => Self::of(r, estimated_days),
+            Err(why) => Self::missing(why),
+        }
+    }
+
     fn missing(why: impl Into<String>) -> Self {
         Figure {
             value: None,
@@ -62,6 +71,10 @@ pub struct AccountReturns {
     pub clamped: bool,
     pub twr: Figure,
     pub mwr: Figure,
+    /// Inflation-adjusted time-weighted return.
+    pub real_twr: Figure,
+    /// Inflation-adjusted money-weighted return.
+    pub real_mwr: Figure,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -71,6 +84,8 @@ pub struct BenchmarkReturn {
     pub asset_id: i64,
     pub name: String,
     pub figure: Figure,
+    /// Inflation-adjusted benchmark return.
+    pub real: Figure,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -81,6 +96,10 @@ pub struct GrowthPoint {
     pub portfolio: Option<String>,
     /// Benchmark growth, 100 at the period start.
     pub benchmark: Option<String>,
+    /// Portfolio growth after inflation, 100 at the period start.
+    pub portfolio_real: Option<String>,
+    /// Benchmark growth after inflation, 100 at the period start.
+    pub benchmark_real: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -93,6 +112,10 @@ pub struct PeriodReturns {
     pub to: String,
     pub twr: Figure,
     pub mwr: Figure,
+    pub real_twr: Figure,
+    pub real_mwr: Figure,
+    /// The period ends after the last published inflation month.
+    pub real_provisional: bool,
     pub benchmark: Option<BenchmarkReturn>,
     pub accounts: Vec<AccountReturns>,
     /// Accounts left out of the portfolio figures, with the reason.
@@ -104,7 +127,102 @@ pub struct PeriodReturns {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ReturnsView {
     pub base_currency: String,
+    pub inflation: InflationView,
     pub periods: Vec<PeriodReturns>,
+}
+
+/// The inflation index behind the real figures.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct InflationView {
+    /// For example "HICP Türkiye (Eurostat)".
+    pub label: Option<String>,
+    /// Latest published month, for example "Sep 2026".
+    pub through: Option<String>,
+    /// Why real figures cannot be shown at all.
+    pub unavailable: Option<String>,
+}
+
+impl InflationView {
+    fn of(inflation: &Inflation) -> Self {
+        match inflation {
+            Inflation::Ready(i) => InflationView {
+                label: Some(i.series.full_label()),
+                through: Some(i.through().label()),
+                unavailable: None,
+            },
+            Inflation::Unavailable(why) => InflationView {
+                label: None,
+                through: None,
+                unavailable: Some(why.clone()),
+            },
+        }
+    }
+}
+
+/// Index levels at the end of the day before `from` and on `to`, and whether
+/// `to` is provisional.
+struct Deflator<'a> {
+    index: &'a DailyIndex,
+    start: Decimal,
+    end: Decimal,
+    provisional: bool,
+}
+
+impl<'a> Deflator<'a> {
+    fn new(inflation: &'a Inflation, from: Date, to: Date) -> Result<Self, String> {
+        let index = match inflation {
+            Inflation::Ready(i) => i,
+            Inflation::Unavailable(why) => return Err(why.clone()),
+        };
+        let missing = || format!("no inflation index before {}", index.first().label());
+        let start = index.on(prev(from)).ok_or_else(missing)?;
+        let end = index.on(to).ok_or_else(missing)?;
+        Ok(Deflator {
+            index,
+            start: start.value,
+            end: end.value,
+            provisional: end.provisional,
+        })
+    }
+
+    /// `I(day) / I(start)`; days on or after the period start always have an index.
+    fn growth(&self, day: Date) -> Decimal {
+        self.index
+            .on(day)
+            .map(|d| d.value / self.start)
+            .unwrap_or(Decimal::ONE)
+    }
+
+    /// `(1 + nominal) / (1 + inflation) − 1`, annualized like the nominal rate.
+    fn real(&self, rate: &Rate, days: i64) -> Rate {
+        match rate {
+            Rate::Value { cumulative, .. } => {
+                let real = (Decimal::ONE + cumulative) * self.start / self.end - Decimal::ONE;
+                Rate::Value {
+                    cumulative: real,
+                    annualized: (days > 365).then(|| calc::annualize(real, days)),
+                }
+            }
+            Rate::NotAvailable(why) => Rate::NotAvailable(why.clone()),
+        }
+    }
+
+    /// Money-weighted return on values and flows in start-of-period money.
+    fn real_mwr(&self, start_value: Decimal, points: &[Point]) -> Rate {
+        let deflated: Vec<Point> = points
+            .iter()
+            .map(|p| {
+                let g = self.growth(p.date);
+                Point {
+                    date: p.date,
+                    value: p.value / g,
+                    flow: p.flow / g,
+                }
+            })
+            .collect();
+        calc::mwr(start_value, &deflated)
+    }
 }
 
 /// The benchmark asset: its canonical instrument key, id and display name.
@@ -191,31 +309,30 @@ fn benchmark_return(
     base: &Code,
     from: Date,
     today: Date,
-) -> (Figure, Option<(Decimal, Date)>) {
+) -> (Result<Rate, String>, Option<(Decimal, Date)>) {
+    let no_price = || Err(format!("no price before {from}"));
     let Some(start) = book.price_on(&b.key, from) else {
-        return (Figure::missing(format!("no price before {from}")), None);
+        return (no_price(), None);
     };
     let Some(end) = book.price_on(&b.key, today) else {
-        return (Figure::missing(format!("no price before {from}")), None);
+        return (no_price(), None);
     };
     let (Some(s), Some(e)) = (
         book.convert(start.value, &start.currency, base, from),
         book.convert(end.value, &end.currency, base, today),
     ) else {
-        return (Figure::missing("no exchange rate for the benchmark"), None);
+        return (Err("no exchange rate for the benchmark".into()), None);
     };
     if s.is_zero() {
-        return (Figure::missing(format!("no price before {from}")), None);
+        return (no_price(), None);
     }
     let cumulative = e / s - Decimal::ONE;
     let days = (today.0 - from.0).num_days() + 1;
     (
-        Figure {
-            value: Some(pct(cumulative)),
-            annualized: (days > 365).then(|| pct(calc::annualize(cumulative, days))),
-            reason: None,
-            estimated_days: 0,
-        },
+        Ok(Rate::Value {
+            cumulative,
+            annualized: (days > 365).then(|| calc::annualize(cumulative, days)),
+        }),
         Some((s, from)),
     )
 }
@@ -230,6 +347,7 @@ pub fn returns_view(
     book: &PriceBook,
     base: &Code,
     benchmark: Option<&Benchmark>,
+    inflation: &Inflation,
     today: Date,
 ) -> ReturnsView {
     let active: Vec<&AccountSeries> = series
@@ -238,10 +356,11 @@ pub fn returns_view(
         .collect();
     let periods = Period::ALL
         .iter()
-        .map(|&period| period_returns(period, &active, book, base, benchmark, today))
+        .map(|&period| period_returns(period, &active, book, base, benchmark, inflation, today))
         .collect();
     ReturnsView {
         base_currency: base.to_string(),
+        inflation: InflationView::of(inflation),
         periods,
     }
 }
@@ -252,6 +371,7 @@ fn period_returns(
     book: &PriceBook,
     base: &Code,
     benchmark: Option<&Benchmark>,
+    inflation: &Inflation,
     today: Date,
 ) -> PeriodReturns {
     let mut accounts = Vec::new();
@@ -260,17 +380,35 @@ fn period_returns(
     for s in active {
         let first = s.first().expect("active");
         let w = window(period, first, today);
-        let (twr, mwr) = match missing_reason(s, w.from, today) {
+        let (twr, mwr, real_twr, real_mwr) = match missing_reason(s, w.from, today) {
             Some(why) => {
                 excluded.push(format!("{}: {why}", s.name));
-                (Figure::missing(why.clone()), Figure::missing(why))
+                let m = Figure::missing(why);
+                (m.clone(), m.clone(), m.clone(), m)
             }
             None => {
                 included.push(s);
                 let (start, points, est) = account_points(s, w.from, today);
+                let twr = calc::twr(start, &points);
+                let deflator = Deflator::new(inflation, w.from, today);
+                let days = points.len() as i64;
                 (
-                    Figure::of(calc::twr(start, &points), est),
+                    Figure::of(twr.clone(), est),
                     Figure::of(calc::mwr(start, &points), est),
+                    Figure::real(
+                        deflator
+                            .as_ref()
+                            .map(|d| d.real(&twr, days))
+                            .map_err(Clone::clone),
+                        est,
+                    ),
+                    Figure::real(
+                        deflator
+                            .as_ref()
+                            .map(|d| d.real_mwr(start, &points))
+                            .map_err(Clone::clone),
+                        est,
+                    ),
                 )
             }
         };
@@ -281,6 +419,8 @@ fn period_returns(
             clamped: w.clamped,
             twr,
             mwr,
+            real_twr,
+            real_mwr,
         });
     }
 
@@ -297,11 +437,15 @@ fn period_returns(
             clamped: false,
             to: today.to_string(),
             twr: Figure::missing(why.clone()),
-            mwr: Figure::missing(why),
+            mwr: Figure::missing(why.clone()),
+            real_twr: Figure::missing(why.clone()),
+            real_mwr: Figure::missing(why),
+            real_provisional: false,
             benchmark: benchmark.map(|b| BenchmarkReturn {
                 asset_id: b.asset_id,
                 name: b.name.clone(),
                 figure: Figure::missing(calc::NOTHING_INVESTED),
+                real: Figure::missing(calc::NOTHING_INVESTED),
             }),
             accounts,
             excluded,
@@ -338,17 +482,47 @@ fn period_returns(
         });
         d = next(d);
     }
-    let twr = Figure::of(calc::twr(start_value, &points), estimated);
+    let twr_rate = calc::twr(start_value, &points);
+    let deflator = Deflator::new(inflation, w.from, today);
+    let days = points.len() as i64;
+    let real_twr = Figure::real(
+        deflator
+            .as_ref()
+            .map(|d| d.real(&twr_rate, days))
+            .map_err(Clone::clone),
+        estimated,
+    );
+    let real_mwr = Figure::real(
+        deflator
+            .as_ref()
+            .map(|d| d.real_mwr(start_value, &points))
+            .map_err(Clone::clone),
+        estimated,
+    );
+    let real_provisional = deflator.as_ref().is_ok_and(|d| d.provisional);
+    let twr = Figure::of(twr_rate, estimated);
     let mwr = Figure::of(calc::mwr(start_value, &points), estimated);
 
     let (bench, bench_base) = match benchmark {
         Some(b) => {
-            let (figure, base_price) = benchmark_return(b, book, base, w.from, today);
+            let (rate, base_price) = benchmark_return(b, book, base, w.from, today);
+            let bench_days = (today.0 - w.from.0).num_days() + 1;
+            let figure = Figure::real(rate.clone(), 0);
+            let real = Figure::real(
+                rate.and_then(|r| {
+                    deflator
+                        .as_ref()
+                        .map(|d| d.real(&r, bench_days))
+                        .map_err(Clone::clone)
+                }),
+                0,
+            );
             (
                 Some(BenchmarkReturn {
                     asset_id: b.asset_id,
                     name: b.name.clone(),
                     figure,
+                    real,
                 }),
                 base_price,
             )
@@ -360,17 +534,20 @@ fn period_returns(
         .iter()
         .zip(index)
         .map(|(p, g)| {
-            let benchmark = match (benchmark, bench_base) {
+            let bench_growth = match (benchmark, bench_base) {
                 (Some(b), Some((s, _))) => book
                     .price_on(&b.key, p.date)
                     .and_then(|q| book.convert(q.value, &q.currency, base, p.date))
-                    .map(|v| index_str(v / s)),
+                    .map(|v| v / s),
                 _ => None,
             };
+            let infl = deflator.as_ref().ok().map(|d| d.growth(p.date));
             GrowthPoint {
                 date: p.date.to_string(),
                 portfolio: Some(index_str(g)),
-                benchmark,
+                benchmark: bench_growth.map(index_str),
+                portfolio_real: infl.map(|i| index_str(g / i)),
+                benchmark_real: bench_growth.zip(infl).map(|(b, i)| index_str(b / i)),
             }
         })
         .collect();
@@ -382,6 +559,9 @@ fn period_returns(
         to: today.to_string(),
         twr,
         mwr,
+        real_twr,
+        real_mwr,
+        real_provisional,
         benchmark: bench,
         accounts,
         excluded,

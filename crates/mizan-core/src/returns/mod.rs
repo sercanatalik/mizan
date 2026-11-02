@@ -3,6 +3,7 @@
 //! stored data only (user database plus the shared history cache).
 
 pub mod calc;
+pub mod inflation;
 pub mod pricebook;
 pub mod series;
 pub mod view;
@@ -10,6 +11,7 @@ pub mod view;
 use mizan_import::{Code, Date};
 use mizan_storage::{HistoryCache, StorageError, Store};
 
+pub use inflation::{DailyIndex, IndexDay, Inflation};
 pub use pricebook::{DatedPrice, PriceBook};
 pub use series::{account_series, replay_account, AccountReplay, AccountSeries, DayValue};
 pub use view::{
@@ -23,6 +25,8 @@ pub struct Inputs {
     pub base: Code,
     pub book: PriceBook,
     pub accounts: Vec<AccountReplay>,
+    /// The base currency's inflation index, for real returns.
+    pub inflation: Inflation,
 }
 
 impl Inputs {
@@ -33,9 +37,11 @@ impl Inputs {
             let stored = store.all_activities(a.id)?;
             accounts.push(replay_account(a.id, &a.name, &stored, &keys));
         }
+        let base = base_currency(store)?;
         Ok(Inputs {
-            base: base_currency(store)?,
+            inflation: Inflation::load(cache, &base)?,
             book: PriceBook::load(store, cache)?,
+            base,
             accounts,
         })
     }

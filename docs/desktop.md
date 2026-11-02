@@ -67,7 +67,10 @@ or once on start when the last refresh is over a day old), and to download
 missing price history in the background after such a refresh, and only to the
 providers enabled in Settings: `www.tefas.gov.tr`, `www.tcmb.gov.tr`, and for
 assets you assigned to them, `query1.finance.yahoo.com` and
-`api.twelvedata.com`. See [market-data.md](market-data.md).
+`api.twelvedata.com`. For real returns it asks only the inflation provider of
+your base currency, at most once a day: `ec.europa.eu` (TRY, EUR),
+`api.bls.gov` (USD) or `www.ons.gov.uk` (GBP). See
+[market-data.md](market-data.md).
 
 ## Where your data lives
 
@@ -125,14 +128,14 @@ the screen says what is missing instead of showing a number.
 |---|---|---|
 | Overview | Portfolio total and per-account totals in the base currency, value over time with net contributions (estimated stretches shaded), accounts with their latest balance check, items needing attention | Price history for days not downloaded yet |
 | Holdings | Positions and cash per account; price (as of), value, weight, unrealized gain; provisional average cost; flags | |
-| Performance | Time- and money-weighted returns (portfolio and per account) for 1M, 3M, YTD, 1Y and since start, benchmark return and growth chart, net contributions; estimates and missing exchange rates are labelled (see [returns.md](returns.md)) | |
+| Performance | Time- and money-weighted returns (portfolio and per account) for 1M, 3M, YTD, 1Y and since start, benchmark return and growth chart, net contributions; a Nominal / Real switch for inflation-adjusted figures; estimates and missing exchange rates are labelled (see [returns.md](returns.md)) | |
 | Imports | Statement files through adapters, column mapper, full review, commit, history and undo | AI-assisted column mapper |
 | Assets | Price source per asset from a provider menu (TEFAS, Yahoo Finance, Twelve Data, manual), TEFAS and Yahoo suggestions, manual prices, merging duplicates | |
-| Settings | Base currency, market data providers (on/off, Twelve Data API key), refresh on start, last refresh report, price history download state and cache location | |
+| Settings | Base currency and the inflation index used for real returns, market data providers (on/off, Twelve Data API key), refresh on start, last refresh report, price history download state and cache location | |
 | Activity, Income, Accounts | Placeholder | Later changes |
 
 Prices come from the built-in TEFAS, Yahoo Finance, Twelve Data and TCMB
-providers or from manual entry; see
+providers or from manual entry, and inflation indices from Eurostat, BLS and ONS; see
 [market-data.md](market-data.md) for what is sent where, and how values are computed.
 
 Average cost is provisional: acquisitions add the cash they settled for,

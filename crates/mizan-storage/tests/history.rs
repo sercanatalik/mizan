@@ -44,14 +44,14 @@ fn open_creates_the_folder_and_schema_and_reopens() {
     let dir = temp_dir("open").join("nested");
     {
         let mut c = HistoryCache::open(&dir).unwrap();
-        assert_eq!(c.schema_version().unwrap(), 2);
+        assert_eq!(c.schema_version().unwrap(), 3);
         assert_eq!(c.path().unwrap(), dir.join(CACHE_FILE));
         c.upsert_fund_price(&price("AFT", "2026-10-30", "0.959756"), "t")
             .unwrap();
     }
     assert!(dir.join(CACHE_FILE).exists());
     let c = HistoryCache::open(&dir).unwrap();
-    assert_eq!(c.schema_version().unwrap(), 2);
+    assert_eq!(c.schema_version().unwrap(), 3);
     assert_eq!(c.fund_prices("AFT").unwrap().len(), 1);
     let tables: Vec<String> = c
         .schema_columns()
@@ -66,6 +66,8 @@ fn open_creates_the_folder_and_schema_and_reopens() {
             "fund_prices",
             "fund_types",
             "fx_rates",
+            "inflation_checks",
+            "inflation_index",
             "listed_prices"
         ]
     );
@@ -212,4 +214,54 @@ fn listed_prices_commit_years_together() {
         c.listed_prices("yahoo", "VWCE.DE").unwrap()[1].close,
         "98.20"
     );
+}
+
+fn idx(month: &str, value: &str) -> CachedIndexValue {
+    CachedIndexValue {
+        month: month.into(),
+        value: value.into(),
+    }
+}
+
+#[test]
+fn inflation_values_and_checks_round_trip() {
+    let mut c = HistoryCache::open_in_memory().unwrap();
+    assert!(c.inflation_check("eurostat", "TR:I15").unwrap().is_none());
+    c.commit_inflation(
+        "eurostat",
+        "TR:I15",
+        &[idx("2026-09", "1675.96"), idx("2026-08", "1640.10")],
+        true,
+        "2026-11-02T10:00:00Z",
+    )
+    .unwrap();
+    assert_eq!(
+        c.inflation_index("eurostat", "TR:I15").unwrap(),
+        [idx("2026-08", "1640.10"), idx("2026-09", "1675.96")]
+    );
+    assert!(c.inflation_index("eurostat", "EA:I15").unwrap().is_empty());
+    let check = c.inflation_check("eurostat", "TR:I15").unwrap().unwrap();
+    assert!(check.ok);
+    assert_eq!(check.checked_at, "2026-11-02T10:00:00Z");
+
+    // A failed request keeps the values and records the failure.
+    c.commit_inflation("eurostat", "TR:I15", &[], false, "2026-11-03T10:00:00Z")
+        .unwrap();
+    assert_eq!(c.inflation_index("eurostat", "TR:I15").unwrap().len(), 2);
+    let check = c.inflation_check("eurostat", "TR:I15").unwrap().unwrap();
+    assert!(!check.ok);
+    assert_eq!(check.checked_at, "2026-11-03T10:00:00Z");
+
+    // Re-fetching a month overwrites it.
+    c.commit_inflation(
+        "eurostat",
+        "TR:I15",
+        &[idx("2026-09", "1676.00")],
+        true,
+        "2026-11-04T10:00:00Z",
+    )
+    .unwrap();
+    let rows = c.inflation_index("eurostat", "TR:I15").unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1].value, "1676.00");
 }

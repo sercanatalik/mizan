@@ -14,9 +14,11 @@ pub type AssetId = i64;
 pub type BatchId = i64;
 
 pub mod history;
+pub mod inflation;
 pub mod market;
 pub use history::{
-    CachedFundPrice, CachedListedPrice, CachedRate, Dated, FetchStatus, FetchedUnit, HistoryCache,
+    CachedFundPrice, CachedIndexValue, CachedListedPrice, CachedRate, Dated, FetchStatus,
+    FetchedUnit, HistoryCache, InflationCheck,
 };
 pub use market::*;
 

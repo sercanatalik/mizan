@@ -9,7 +9,11 @@ export type PeriodReturns = { period: Period,
 /**
  * First day counted for the portfolio; `None` without activities.
  */
-from: string | null, clamped: boolean, to: string, twr: Figure, mwr: Figure, benchmark: BenchmarkReturn | null, accounts: Array<AccountReturns>, 
+from: string | null, clamped: boolean, to: string, twr: Figure, mwr: Figure, real_twr: Figure, real_mwr: Figure, 
+/**
+ * The period ends after the last published inflation month.
+ */
+real_provisional: boolean, benchmark: BenchmarkReturn | null, accounts: Array<AccountReturns>, 
 /**
  * Accounts left out of the portfolio figures, with the reason.
  */
