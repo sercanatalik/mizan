@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { api, type PriceSourceKind } from "./api";
 import type { Decision } from "./generated/Decision";
 import type { ImportView } from "./generated/ImportView";
+import type { Period } from "./generated/Period";
 
 export const keys = {
   holdings: ["holdings"] as const,
@@ -13,6 +14,9 @@ export const keys = {
   pending: ["pending"] as const,
   settings: ["settings"] as const,
   assets: ["assets"] as const,
+  backfill: ["backfill"] as const,
+  valueHistory: ["value-history"] as const,
+  performance: ["performance"] as const,
   /** Client-side flag set by the background refresh events. */
   refreshing: ["refreshing"] as const,
 };
@@ -26,6 +30,17 @@ export const useImportSession = () => useQuery({ queryKey: keys.importSession, q
 export const usePendingDecisions = () => useQuery({ queryKey: keys.pending, queryFn: api.pendingDecisions });
 export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: api.settings });
 export const useAssets = () => useQuery({ queryKey: keys.assets, queryFn: api.assets });
+export const useValueHistory = () => useQuery({ queryKey: keys.valueHistory, queryFn: api.valueHistory });
+export const usePerformance = (period: Period) =>
+  useQuery({ queryKey: [...keys.performance, period], queryFn: () => api.performance(period) });
+
+/** Price history backfill; polled every 2 s while it runs. */
+export const useBackfillStatus = () =>
+  useQuery({
+    queryKey: keys.backfill,
+    queryFn: api.backfillStatus,
+    refetchInterval: (q) => (q.state.data?.sources.some((s) => s.state === "running") ? 2000 : false),
+  });
 
 /** A review changed: show the new view and refresh what depends on it. */
 function reviewChanged(qc: QueryClient, view: ImportView | null) {
@@ -36,7 +51,7 @@ function reviewChanged(qc: QueryClient, view: ImportView | null) {
 
 /** Stored data changed: refresh every read model. */
 function dataChanged(qc: QueryClient) {
-  for (const k of [keys.holdings, keys.overview, keys.contributions, keys.accounts, keys.history, keys.pending]) {
+  for (const k of [keys.holdings, keys.overview, keys.contributions, keys.accounts, keys.history, keys.pending, keys.valueHistory, keys.performance]) {
     void qc.invalidateQueries({ queryKey: k });
   }
 }
@@ -105,7 +120,7 @@ export function useImportUndo() {
 
 /** Prices, rates or asset identity changed: refresh every view that shows values. */
 export function valuesChanged(qc: QueryClient) {
-  for (const k of [keys.holdings, keys.overview, keys.assets, keys.settings]) {
+  for (const k of [keys.holdings, keys.overview, keys.assets, keys.settings, keys.backfill, keys.valueHistory, keys.performance]) {
     void qc.invalidateQueries({ queryKey: k });
   }
 }
@@ -128,6 +143,11 @@ export function useSettingsMutations() {
       onSuccess: () => void qc.invalidateQueries({ queryKey: keys.settings }),
     }),
   };
+}
+
+export function useSetBenchmark() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: api.setBenchmark, onSuccess: () => void qc.invalidateQueries({ queryKey: keys.performance }) });
 }
 
 export function useAssetMutations() {

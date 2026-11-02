@@ -7,8 +7,9 @@ use std::sync::atomic::Ordering;
 use chrono::{DateTime, Utc};
 use mizan_core::assets::{assets_view as core_assets_view, tefas_suggestion, AssetView};
 use mizan_import::{Code, Date};
+use mizan_market::backfill::{self, BackfillProgress, BackfillState, PlanInput};
 use mizan_market::{Http, RefreshReport, SourceStatus, PROVIDERS};
-use mizan_storage::{PriceSourceKind, Store};
+use mizan_storage::{HistoryCache, PriceSourceKind, Store};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -18,6 +19,7 @@ use crate::state::AppState;
 
 pub const EVENT_REFRESH_STARTED: &str = "market:refresh-started";
 pub const EVENT_REFRESH_FINISHED: &str = "market:refresh-finished";
+pub const EVENT_BACKFILL_FINISHED: &str = "market:backfill-finished";
 const REFRESH_ON_START: &str = "refresh_on_start";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -74,21 +76,152 @@ pub fn refresh_prices(
     }
     let _running = Running(state);
     let started = now();
-    match &state.db_path {
-        // Own connection: screens keep reading while the refresh waits on the network.
-        Some(path) => {
-            let mut store = Store::open(path)?;
-            Ok(mizan_market::refresh(
-                &mut store, http, today, &started, &now,
-            )?)
+    let report = with_history(state, |cache| {
+        let cache = match cache {
+            Ok(c) => Some(c),
+            Err(e) => {
+                eprintln!("mizan: history cache unavailable: {e}");
+                None
+            }
+        };
+        match &state.db_path {
+            // Own connection: screens keep reading while the refresh waits on the network.
+            Some(path) => {
+                let mut store = Store::open(path)?;
+                Ok(mizan_market::refresh(
+                    &mut store, cache, http, today, &started, &now,
+                )?)
+            }
+            None => {
+                let mut store = state.store.lock().map_err(locked)?;
+                Ok(mizan_market::refresh(
+                    &mut store, cache, http, today, &started, &now,
+                )?)
+            }
         }
+    })?;
+    bump_generation(state);
+    Ok(report)
+}
+
+// ---- history cache and backfill ----
+
+/// Run `f` with the history cache: a fresh connection to `~/.mizan/market-history.sqlite`,
+/// or the in-memory cache in tests. `f` receives the open error instead when the
+/// cache cannot be opened, so callers can carry on without it.
+pub fn with_history<T>(
+    state: &AppState,
+    f: impl FnOnce(Result<&mut HistoryCache, String>) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    match &state.history_dir {
+        Some(dir) => match HistoryCache::open(dir) {
+            Ok(mut c) => f(Ok(&mut c)),
+            Err(e) => f(Err(e.to_string())),
+        },
         None => {
-            let mut store = state.store.lock().map_err(locked)?;
-            Ok(mizan_market::refresh(
-                &mut store, http, today, &started, &now,
-            )?)
+            let mut c = state.history_mem.lock().map_err(locked)?;
+            f(Ok(&mut c))
         }
     }
+}
+
+fn history_path(state: &AppState) -> Option<String> {
+    state.history_dir.as_ref().map(|d| {
+        d.join(mizan_storage::history::CACHE_FILE)
+            .display()
+            .to_string()
+    })
+}
+
+/// Mark values and returns as stale (see the returns memo).
+pub fn bump_generation(state: &AppState) {
+    state.generation.fetch_add(1, Ordering::SeqCst);
+}
+
+fn plan_input(state: &AppState) -> Result<PlanInput, AppError> {
+    match &state.db_path {
+        Some(path) => Ok(PlanInput::from_store(&Store::open(path)?)?),
+        None => Ok(PlanInput::from_store(
+            &*state.store.lock().map_err(locked)?,
+        )?),
+    }
+}
+
+/// Resets the backfill single-flight flag when the backfill ends.
+struct Backfilling<'a>(&'a AppState);
+
+impl Drop for Backfilling<'_> {
+    fn drop(&mut self) {
+        self.0.backfilling.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Fill missing history into the cache. Runs after a successful refresh; at most
+/// one at a time (a second call returns the current progress). Values and returns
+/// are marked stale at most every 5 seconds while it runs, and at the end.
+pub fn backfill_history(
+    state: &AppState,
+    http: &dyn Http,
+    today: Date,
+    now: &dyn Fn() -> String,
+) -> Result<BackfillProgress, AppError> {
+    if state.backfilling.swap(true, Ordering::SeqCst) {
+        return backfill_status(state, today);
+    }
+    let _running = Backfilling(state);
+    let input = plan_input(state)?;
+    let path = history_path(state);
+    let progress = with_history(state, |cache| {
+        let cache = cache.map_err(invalid)?;
+        let plan = backfill::plan(&input, cache, today)?;
+        let mut last_bump = std::time::Instant::now();
+        let p = backfill::run(&plan, cache, http, &state.cancel, now, &mut |p| {
+            let mut p = p.clone();
+            p.cache_path = path.clone();
+            if let Ok(mut slot) = state.backfill.lock() {
+                *slot = Some(p);
+            }
+            if last_bump.elapsed() >= std::time::Duration::from_secs(5) {
+                bump_generation(state);
+                last_bump = std::time::Instant::now();
+            }
+        });
+        Ok(p)
+    })?;
+    let mut progress = progress;
+    progress.cache_path = path;
+    *state.backfill.lock().map_err(locked)? = Some(progress.clone());
+    bump_generation(state);
+    Ok(progress)
+}
+
+/// Backfill progress for Settings. While a backfill runs (or after one failed in
+/// this session), its live progress; otherwise what is still missing, computed
+/// from the cache without any request.
+pub fn backfill_status(state: &AppState, today: Date) -> Result<BackfillProgress, AppError> {
+    let last = state.backfill.lock().map_err(locked)?.clone();
+    if let Some(p) = &last {
+        let failed = p.sources.iter().any(|s| s.state == BackfillState::Failed);
+        if state.backfilling.load(Ordering::SeqCst) || failed {
+            return Ok(p.clone());
+        }
+    }
+    let input = plan_input(state)?;
+    let path = history_path(state);
+    with_history(state, |cache| match cache {
+        Ok(cache) => {
+            let plan = backfill::plan(&input, cache, today)?;
+            Ok(BackfillProgress::at_rest(&plan, path.clone()))
+        }
+        Err(e) => {
+            let mut p = BackfillProgress::waiting(path.clone());
+            for s in p.sources.iter_mut() {
+                s.state = BackfillState::Failed;
+                s.error = Some(format!("history cache unavailable: {e}"));
+            }
+            Ok(p)
+        }
+    })
 }
 
 /// Refresh on start when enabled and the last successful refresh is over 24 hours old (or never happened).
@@ -190,7 +323,9 @@ pub fn set_base_currency(state: &AppState, currency: &str) -> Result<(), AppErro
             "{currency} is not an available base currency"
         )));
     }
-    Ok(store.set_setting("base_currency", currency)?)
+    store.set_setting("base_currency", currency)?;
+    bump_generation(state);
+    Ok(())
 }
 
 pub fn set_refresh_on_start(state: &AppState, enabled: bool) -> Result<(), AppError> {
@@ -238,7 +373,9 @@ pub fn set_price_source(
         "none" => None,
         other => return Err(invalid(format!("unknown price source {other:?}"))),
     };
-    Ok(store.set_price_source(asset_id, source.as_ref())?)
+    store.set_price_source(asset_id, source.as_ref())?;
+    bump_generation(state);
+    Ok(())
 }
 
 pub fn accept_suggestion(state: &AppState, asset_id: i64) -> Result<(), AppError> {
@@ -247,7 +384,9 @@ pub fn accept_suggestion(state: &AppState, asset_id: i64) -> Result<(), AppError
     let current = store.price_source(asset_id)?;
     let code = tefas_suggestion(&a.hint, current.as_ref())
         .ok_or_else(|| invalid("this asset has no suggestion"))?;
-    Ok(store.set_price_source(asset_id, Some(&PriceSourceKind::Tefas { fund_code: code }))?)
+    store.set_price_source(asset_id, Some(&PriceSourceKind::Tefas { fund_code: code }))?;
+    bump_generation(state);
+    Ok(())
 }
 
 pub fn add_manual_price(
@@ -267,30 +406,38 @@ pub fn add_manual_price(
         return Err(invalid("a price must be positive"));
     }
     let currency = Code::parse(currency.trim()).map_err(invalid)?;
-    Ok(store.add_manual_price(
+    store.add_manual_price(
         asset_id,
         &date.to_string(),
         &value.normalize().to_string(),
         currency.as_str(),
         now,
-    )?)
+    )?;
+    bump_generation(state);
+    Ok(())
 }
 
 pub fn delete_manual_price(state: &AppState, asset_id: i64, date: &str) -> Result<(), AppError> {
     let mut store = state.store.lock().map_err(locked)?;
-    Ok(store.delete_manual_price(asset_id, date)?)
+    store.delete_manual_price(asset_id, date)?;
+    bump_generation(state);
+    Ok(())
 }
 
 pub fn merge_assets(state: &AppState, from: i64, into: i64) -> Result<i64, AppError> {
     let mut store = state.store.lock().map_err(locked)?;
     ensure_asset(&store, from)?;
     ensure_asset(&store, into)?;
-    Ok(store.merge_assets(from, into)?)
+    let r = store.merge_assets(from, into)?;
+    bump_generation(state);
+    Ok(r)
 }
 
 pub fn undo_merge(state: &AppState, merge_id: i64) -> Result<(), AppError> {
     let mut store = state.store.lock().map_err(locked)?;
-    Ok(store.undo_merge(merge_id)?)
+    store.undo_merge(merge_id)?;
+    bump_generation(state);
+    Ok(())
 }
 
 // ---- Tauri wrappers ----
@@ -317,7 +464,29 @@ fn run_refresh(app: &AppHandle) -> Result<RefreshReport, AppError> {
     let _ = app.emit(EVENT_REFRESH_STARTED, ());
     let result = refresh_prices(&app.state::<AppState>(), &http, today(), now);
     let _ = app.emit(EVENT_REFRESH_FINISHED, result.as_ref().ok());
+    if result.is_ok() {
+        spawn_backfill(app.clone());
+    }
     result
+}
+
+/// Continue with the history backfill in the background after a refresh.
+fn spawn_backfill(app: AppHandle) {
+    std::thread::spawn(move || {
+        let Ok(http) = mizan_market::ReqwestHttp::new() else {
+            return;
+        };
+        let state = app.state::<AppState>();
+        if let Err(e) = backfill_history(&state, &http, today(), &now) {
+            eprintln!("mizan: history backfill failed: {e}");
+        }
+        let _ = app.emit(EVENT_BACKFILL_FINISHED, ());
+    });
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn cmd_backfill_status(app: AppHandle) -> Result<BackfillProgress, AppError> {
+    blocking(app, |s| backfill_status(s, today())).await
 }
 
 /// Start a background refresh after launch when it is due. Never blocks the window.
@@ -623,5 +792,135 @@ mod tests {
         assert!(start_refresh_due(&state, now).unwrap());
         set_refresh_on_start(&state, false).unwrap();
         assert!(!start_refresh_due(&state, now).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod backfill_tests {
+    use super::*;
+    use mizan_core::{commit, prepare, resolve_batch, CreatePolicy, Decisions, MappingResolver};
+    use mizan_market::{HttpError, Response};
+    use std::sync::Mutex;
+
+    /// Answers every TEFAS request with one AFT price and every TCMB request with
+    /// one USD rate, and records each URL.
+    #[derive(Default)]
+    struct Fake {
+        calls: Mutex<Vec<String>>,
+    }
+
+    impl Http for Fake {
+        fn get(&self, url: &str) -> Result<Response, HttpError> {
+            self.calls.lock().unwrap().push(url.into());
+            Ok(Response {
+                status: 200,
+                body: r#"<Tarih_Date Tarih="30.10.2026"><Currency CurrencyCode="USD"><Unit>1</Unit><ForexBuying>34.5</ForexBuying></Currency></Tarih_Date>"#.into(),
+            })
+        }
+        fn post_json(&self, url: &str, body: &str) -> Result<Response, HttpError> {
+            self.calls.lock().unwrap().push(url.into());
+            let v: serde_json::Value = serde_json::from_str(body).unwrap();
+            let from = v["basTarih"].as_str().unwrap().to_string();
+            let date = format!("{}-{}-{}", &from[..4], &from[4..6], &from[6..8]);
+            Ok(Response {
+                status: 200,
+                body: format!(
+                    r#"{{"errorMessage":null,"resultList":[{{"fonKodu":"AFT","tarih":"{date}","fiyat":1.25}}]}}"#
+                ),
+            })
+        }
+        fn pause(&self, _: std::time::Duration) {}
+    }
+
+    fn day() -> Date {
+        Date::parse("2026-11-20").unwrap()
+    }
+
+    /// A TRY fund bought in September, priced from TEFAS.
+    fn state() -> AppState {
+        let mut store = Store::open_in_memory().unwrap();
+        let src = serde_json::json!({"adapter": "t", "adapter_version": "1", "file_sha256": "a".repeat(64), "locator": "row 1"});
+        let parsed = mizan_import::parse_batch_value(serde_json::json!({
+            "schema": "mizan.import/1",
+            "records": [{
+                "source": src, "account": {"hint": "P1"}, "kind": "buy", "date": "2026-09-15",
+                "instrument": {"symbol": "AFT", "class_hint": "fund", "currency": "TRY"},
+                "quantity": "100", "net_cash": {"amount": "120.00", "currency": "TRY"}
+            }]
+        }))
+        .unwrap();
+        let rb = {
+            let mut r = MappingResolver {
+                store: &mut store,
+                policy: CreatePolicy {
+                    create_accounts: true,
+                    create_assets: true,
+                },
+            };
+            resolve_batch(parsed, &mut r).unwrap()
+        };
+        let p = prepare(&store, rb).unwrap();
+        commit(&mut store, &p, &Decisions::new()).unwrap();
+        let asset = store.list_assets().unwrap()[0].id;
+        store
+            .set_price_source(
+                asset,
+                Some(&PriceSourceKind::Tefas {
+                    fund_code: "AFT".into(),
+                }),
+            )
+            .unwrap();
+        AppState::new(store)
+    }
+
+    #[test]
+    fn status_before_any_refresh_is_waiting_and_makes_no_requests() {
+        let st = state();
+        let p = backfill_status(&st, day()).unwrap();
+        let t = p.source("tefas").unwrap();
+        assert_eq!((t.state, t.planned), (BackfillState::Waiting, 3));
+        assert_eq!(p.source("tcmb").unwrap().state, BackfillState::Idle);
+    }
+
+    #[test]
+    fn refresh_then_backfill_fills_the_cache_and_status_reports_done() {
+        let st = state();
+        let http = Fake::default();
+        refresh_prices(&st, &http, day(), clock).unwrap();
+        let g = st.generation.load(Ordering::SeqCst);
+        let p = backfill_history(&st, &http, day(), &clock).unwrap();
+        let t = p.source("tefas").unwrap();
+        assert_eq!((t.state, t.done, t.planned), (BackfillState::Done, 3, 3));
+        assert!(
+            st.generation.load(Ordering::SeqCst) > g,
+            "values marked stale"
+        );
+        let cached = st.history_mem.lock().unwrap().fund_prices("AFT").unwrap();
+        assert!(cached.len() >= 3);
+        let rest = backfill_status(&st, day()).unwrap();
+        assert_eq!(rest.source("tefas").unwrap().state, BackfillState::Done);
+    }
+
+    #[test]
+    fn a_second_backfill_while_one_runs_returns_progress_without_requests() {
+        let st = state();
+        st.backfilling.store(true, Ordering::SeqCst);
+        let http = Fake::default();
+        backfill_history(&st, &http, day(), &clock).unwrap();
+        assert!(http.calls.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn cancel_stops_the_backfill_and_keeps_completed_units() {
+        let st = state();
+        st.cancel.store(true, Ordering::SeqCst);
+        let http = Fake::default();
+        let p = backfill_history(&st, &http, day(), &clock).unwrap();
+        assert!(http.calls.lock().unwrap().is_empty());
+        assert_eq!(p.source("tefas").unwrap().state, BackfillState::Waiting);
+    }
+
+    fn clock() -> String {
+        "2026-11-20T10:00:00Z".into()
     }
 }

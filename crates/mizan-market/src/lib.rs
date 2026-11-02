@@ -4,6 +4,7 @@
 //! This is the only crate that touches the network, and only inside
 //! [`refresh`]. Everything else reads stored prices and rates.
 
+pub mod backfill;
 pub mod http;
 pub mod refresh;
 pub mod tcmb;
@@ -58,4 +59,15 @@ pub fn set_enabled(
         )));
     }
     store.set_setting(&enabled_key(id), if enabled { "true" } else { "false" })
+}
+
+/// The base currency setting as text, `TRY` when unset.
+pub fn base_currency_code(
+    store: &mizan_storage::Store,
+) -> Result<String, mizan_storage::StorageError> {
+    Ok(store
+        .setting("base_currency")?
+        .map(|s| s.trim().to_uppercase())
+        .filter(|s| s.len() == 3)
+        .unwrap_or_else(|| "TRY".into()))
 }

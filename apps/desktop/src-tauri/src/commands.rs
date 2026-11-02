@@ -137,6 +137,7 @@ pub fn import_create_asset(state: &AppState, key: String) -> Result<ImportView, 
 pub fn import_commit(state: &AppState) -> Result<CommitView, AppError> {
     let result = with_session(state, |s, store| s.commit(store))?;
     *state.session.lock().map_err(store_err)? = None;
+    crate::market::bump_generation(state);
     Ok(result)
 }
 
@@ -166,6 +167,7 @@ pub fn import_history(state: &AppState) -> Result<Vec<BatchView>, AppError> {
 pub fn import_undo(state: &AppState, batch_id: i64) -> Result<(), AppError> {
     let mut store = state.store.lock().map_err(store_err)?;
     store.undo_batch(batch_id)?;
+    crate::market::bump_generation(state);
     Ok(())
 }
 
@@ -368,7 +370,12 @@ mod tests {
         assert_eq!(accts[0].hints, vec!["DEG-4417".to_string()]);
 
         let c = contributions(&state, Date::parse("2026-11-01").unwrap()).unwrap();
-        assert_eq!(c.periods[0].total[0].amount, "+5000.00");
+        let ytd = c
+            .periods
+            .iter()
+            .find(|p| p.period == mizan_core::portfolio::Period::Ytd)
+            .unwrap();
+        assert_eq!(ytd.total[0].amount, "+5000.00");
 
         let hist = import_history(&state).unwrap();
         assert_eq!((hist.len(), hist[0].activity_count), (1, 3));

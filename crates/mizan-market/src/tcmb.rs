@@ -119,3 +119,25 @@ pub fn fetch(http: &dyn Http) -> Result<Option<Vec<Rate>>, TcmbError> {
         s => Err(TcmbError::Status(s)),
     }
 }
+
+/// The archive file for one day: `https://www.tcmb.gov.tr/kurlar/YYYYMM/DDMMYYYY.xml`.
+pub fn archive_url(date: Date) -> String {
+    format!(
+        "https://www.tcmb.gov.tr/kurlar/{}/{}.xml",
+        date.0.format("%Y%m"),
+        date.0.format("%d%m%Y")
+    )
+}
+
+/// Rates published for `date`. `Ok(None)` when TCMB published no file that day
+/// (weekend or holiday).
+pub fn fetch_day(http: &dyn Http, date: Date) -> Result<Option<Vec<Rate>>, TcmbError> {
+    let r = http
+        .get(&archive_url(date))
+        .map_err(|e| TcmbError::Http(e.0))?;
+    match r.status {
+        200 => parse(&r.body).map(Some),
+        404 => Ok(None),
+        s => Err(TcmbError::Status(s)),
+    }
+}

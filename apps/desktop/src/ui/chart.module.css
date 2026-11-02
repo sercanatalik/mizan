@@ -1,0 +1,161 @@
+.figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.plot {
+  position: relative;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  outline: none;
+  touch-action: none;
+}
+
+.svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.grid {
+  stroke: var(--divider);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.tick {
+  font-size: 11px;
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.band {
+  fill: var(--surface-sunken);
+  stroke: none;
+}
+
+.crosshair {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.dot {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.swatchBand {
+  height: 10px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.tooltip {
+  position: absolute;
+  top: 8px;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 14px rgb(18 22 27 / 10%);
+  padding: 8px 10px;
+  font-size: 12px;
+  min-width: 160px;
+  z-index: 2;
+}
+
+.tipDate {
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.tipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.tipValue {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tableToggle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tableToggle summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.table {
+  margin-top: var(--space-2);
+  border-collapse: collapse;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 3px 14px 3px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

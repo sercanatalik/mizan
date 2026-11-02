@@ -7,6 +7,7 @@ import { Card, EmptyState } from "../ui";
 import { longDate } from "./format";
 import { NoData } from "./NoData";
 import { RefreshButton } from "./RefreshButton";
+import { ValueOverTime } from "./ValueOverTime";
 import type { TotalView } from "../bridge/generated/TotalView";
 
 function excluded(t: TotalView): string | null {
@@ -73,9 +74,7 @@ export function Overview() {
           <EmptyState title="Prices needed" message="Refresh prices to see the portfolio value. Assign price sources on the Assets screen." action={{ to: "/assets", label: "Go to Assets" }} />
         )}
       </Card>
-      <Card title="Value over time" label="Value chart">
-        <EmptyState title="Returns engine needed" message="The value history needs the returns engine, which comes in a later version." />
-      </Card>
+      <ValueOverTime />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 14, alignItems: "start" }}>
         <Card title="Accounts" label="Accounts">
           <div>

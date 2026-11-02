@@ -35,6 +35,8 @@ fn generate(dir: &Path) {
     mizan_core::portfolio::Holdings::export_all(&cfg).unwrap();
     mizan_core::portfolio::Overview::export_all(&cfg).unwrap();
     mizan_core::portfolio::Contributions::export_all(&cfg).unwrap();
+    mizan_core::returns::ReturnsView::export_all(&cfg).unwrap();
+    mizan_core::returns::ValueHistory::export_all(&cfg).unwrap();
 }
 
 #[test]

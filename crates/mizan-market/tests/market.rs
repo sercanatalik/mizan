@@ -153,6 +153,7 @@ fn tcmb_missing_file_keeps_stored_rates() {
     );
     let rep = refresh(
         &mut s,
+        None,
         &http,
         day("2026-11-01"),
         "2026-11-01T10:00:00Z",
@@ -285,9 +286,14 @@ fn store_with_assets() -> (Store, i64, i64) {
 }
 
 fn run(s: &mut Store, http: &FakeHttp) -> RefreshReport {
-    refresh(s, http, day("2026-11-01"), "2026-11-01T10:00:00Z", || {
-        "2026-11-01T10:00:05Z".into()
-    })
+    refresh(
+        s,
+        None,
+        http,
+        day("2026-11-01"),
+        "2026-11-01T10:00:00Z",
+        || "2026-11-01T10:00:05Z".into(),
+    )
     .unwrap()
 }
 
@@ -410,4 +416,123 @@ fn disabled_providers_and_manual_assets_make_no_requests() {
     let rep = run(&mut s, &http);
     assert!(http.calls_to(tefas::URL).is_empty());
     assert_eq!(rep.sources[0].status, SourceStatus::Idle);
+}
+
+// ---- history cache (returns engine) ----
+
+#[test]
+fn refresh_also_writes_the_history_cache() {
+    let (mut s, _aft, man) = store_with_assets();
+    s.add_manual_price(man, "2026-10-30", "12.50", "TRY", "2026-11-01T09:00:00Z")
+        .unwrap();
+    let mut cache = mizan_storage::HistoryCache::open_in_memory().unwrap();
+    let http = FakeHttp::default()
+        .ok(tefas::URL, &fixture("tefas/fund_aft_week.json"))
+        .ok(tcmb::TODAY_URL, &fixture("tcmb/today.xml"));
+    let rep = refresh(
+        &mut s,
+        Some(&mut cache),
+        &http,
+        day("2026-11-01"),
+        "2026-11-01T10:00:00Z",
+        || "2026-11-01T10:00:05Z".into(),
+    )
+    .unwrap();
+    assert!(!rep.any_failed(), "{rep:?}");
+    let p = cache.fund_price_on("AFT", "2026-11-01").unwrap().unwrap();
+    assert_eq!(
+        (p.date.as_str(), p.value.as_str()),
+        ("2026-10-30", "0.959756")
+    );
+    assert_eq!(cache.fund_type("AFT").unwrap().as_deref(), Some("YAT"));
+    let jpy = cache.rates("JPY").unwrap();
+    assert_eq!(
+        (jpy[0].date.as_str(), jpy[0].value.as_str()),
+        ("2026-10-30", "0.315605")
+    );
+    assert_eq!(
+        cache.fetched("tcmb", "*").unwrap().get("2026-10-30"),
+        Some(&mizan_storage::FetchStatus::Ok)
+    );
+    // Manual prices stay private to the user database.
+    assert!(cache
+        .all_text_values()
+        .unwrap()
+        .iter()
+        .all(|v| v != "12.50"));
+}
+
+#[test]
+fn tefas_month_of_history_for_one_fund() {
+    let http = FakeHttp::default().ok(tefas::URL, &fixture("tefas/fund_aft_2022_01.json"));
+    let got =
+        tefas::fetch_range(&http, "YAT", "AFT", day("2022-01-01"), day("2022-01-31")).unwrap();
+    let tefas::MonthFetch::Prices(prices) = got else {
+        panic!("expected prices")
+    };
+    assert_eq!(prices.len(), 21);
+    assert_eq!(prices.last().unwrap().date, day("2022-01-03"));
+    assert_eq!(prices.last().unwrap().price.to_string(), "0.16621");
+    let body = http.calls_to(tefas::URL)[0].1.clone().unwrap();
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["fonKodu"], "AFT");
+    assert_eq!(v["fonTipi"], "YAT");
+    assert_eq!(
+        (v["basTarih"].as_str(), v["bitTarih"].as_str()),
+        (Some("20220101"), Some("20220131"))
+    );
+}
+
+#[test]
+fn tefas_too_old_and_range_refusals() {
+    let http = FakeHttp::default()
+        .ok(tefas::URL, &fixture("tefas/error_too_old.json"))
+        .ok(tefas::URL, &fixture("tefas/error_range.json"));
+    assert_eq!(
+        tefas::fetch_range(&http, "YAT", "AFT", day("2020-01-01"), day("2020-01-31")).unwrap(),
+        tefas::MonthFetch::TooOld
+    );
+    let e =
+        tefas::fetch_range(&http, "YAT", "AFT", day("2022-01-01"), day("2022-06-30")).unwrap_err();
+    assert!(e.to_string().contains("1 ayı aşamaz"), "{e}");
+}
+
+#[test]
+fn tefas_earliest_history_date_is_five_years_back_plus_a_day() {
+    assert_eq!(
+        tefas::earliest_history_date(day("2026-11-02")),
+        day("2021-11-03")
+    );
+    assert_eq!(
+        tefas::earliest_history_date(day("2028-02-29")),
+        day("2023-03-01")
+    );
+}
+
+#[test]
+fn tcmb_archive_day_and_holiday() {
+    let d = day("2025-10-30");
+    assert_eq!(
+        tcmb::archive_url(d),
+        "https://www.tcmb.gov.tr/kurlar/202510/30102025.xml"
+    );
+    let holiday = day("2025-10-29");
+    let http = FakeHttp::default()
+        .ok(
+            &tcmb::archive_url(d),
+            &fixture("tcmb/archive_2025-10-30.xml"),
+        )
+        .on(
+            &tcmb::archive_url(holiday),
+            Ok(Response {
+                status: 404,
+                body: String::new(),
+            }),
+        );
+    let rates = tcmb::fetch_day(&http, d).unwrap().unwrap();
+    let jpy = rates.iter().find(|r| r.currency.as_str() == "JPY").unwrap();
+    // Published per 100 JPY: 27.1907 / 100.
+    assert_eq!(jpy.try_per_unit.to_string(), "0.271907");
+    assert_eq!(jpy.date, d);
+    assert_eq!(tcmb::fetch_day(&http, holiday).unwrap(), None);
 }

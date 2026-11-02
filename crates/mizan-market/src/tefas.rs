@@ -122,6 +122,8 @@ pub fn request_body(fund_type: &str, from: Date, to: Date) -> String {
 pub struct Fetched {
     /// Latest price per fund code.
     pub latest: BTreeMap<String, FundPrice>,
+    /// Fund type (`YAT`, `EMK`) each found code was listed under.
+    pub fund_types: BTreeMap<String, String>,
     /// Requested codes TEFAS did not list in any fund type.
     pub not_found: Vec<String>,
     /// Set when a request failed; prices from earlier successful requests are kept.
@@ -155,6 +157,7 @@ pub fn fetch_latest(http: &dyn Http, codes: &BTreeSet<String>, today: Date) -> F
                 for p in rows.into_iter().filter(|p| remaining.contains(&p.code)) {
                     let keep = out.latest.get(&p.code).is_none_or(|q| p.date > q.date);
                     if keep {
+                        out.fund_types.insert(p.code.clone(), fund_type.to_string());
                         out.latest.insert(p.code.clone(), p);
                     }
                 }
@@ -168,4 +171,64 @@ pub fn fetch_latest(http: &dyn Http, codes: &BTreeSet<String>, today: Date) -> F
     }
     out.not_found = remaining.into_iter().collect();
     out
+}
+
+// ---------------------------------------------------------------- history
+
+/// TEFAS refuses start dates more than five years before today.
+pub const HISTORY_YEARS: i32 = 5;
+
+/// The earliest start date TEFAS accepts on `today` (five years back, plus one
+/// day of margin so the boundary is never hit).
+pub fn earliest_history_date(today: Date) -> Date {
+    use chrono::Datelike;
+    let t = today.0;
+    let back = t
+        .with_year(t.year() - HISTORY_YEARS)
+        .or_else(|| {
+            t.pred_opt()
+                .and_then(|d| d.with_year(t.year() - HISTORY_YEARS))
+        })
+        .unwrap_or(t);
+    Date(back.succ_opt().unwrap_or(back))
+}
+
+/// Outcome of a one-month history request for one fund.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MonthFetch {
+    /// Prices published in the range (possibly none).
+    Prices(Vec<FundPrice>),
+    /// TEFAS refuses the range as more than five years old.
+    TooOld,
+}
+
+fn is_too_old(msg: &str) -> bool {
+    msg.to_lowercase().contains("yıldan eski")
+}
+
+/// Prices of one fund between `from` and `to` (at most one month), from a
+/// single-fund request with the given fund type.
+pub fn fetch_range(
+    http: &dyn Http,
+    fund_type: &str,
+    code: &str,
+    from: Date,
+    to: Date,
+) -> Result<MonthFetch, TefasError> {
+    let mut body: serde_json::Value =
+        serde_json::from_str(&request_body(fund_type, from, to)).expect("valid body");
+    body["fonKodu"] = serde_json::Value::String(code.to_string());
+    let r = http
+        .post_json(URL, &body.to_string())
+        .map_err(|e| TefasError::Http(e.0))?;
+    if r.status != 200 {
+        return Err(TefasError::Status(r.status));
+    }
+    match parse(&r.body) {
+        Ok(rows) => Ok(MonthFetch::Prices(
+            rows.into_iter().filter(|p| p.code == code).collect(),
+        )),
+        Err(TefasError::Api(msg)) if is_too_old(&msg) => Ok(MonthFetch::TooOld),
+        Err(e) => Err(e),
+    }
 }

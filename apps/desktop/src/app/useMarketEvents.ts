@@ -5,6 +5,7 @@ import { keys, valuesChanged } from "../bridge/queries";
 
 export const REFRESH_STARTED = "market:refresh-started";
 export const REFRESH_FINISHED = "market:refresh-finished";
+export const BACKFILL_FINISHED = "market:backfill-finished";
 
 /** Track background price refreshes started by the app (for example on launch). */
 export function useMarketEvents() {
@@ -23,6 +24,7 @@ export function useMarketEvents() {
         valuesChanged(qc);
       }),
     );
+    add(listen(BACKFILL_FINISHED, () => valuesChanged(qc)));
     return () => {
       stopped = true;
       unlisten.forEach((u) => u());

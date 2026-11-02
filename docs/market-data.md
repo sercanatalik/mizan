@@ -9,13 +9,68 @@ other time.
 
 | Provider | Supplies | Sent over the network |
 |---|---|---|
-| **TEFAS** | Daily unit prices of Turkish investment (`YAT`) and pension (`EMK`) funds, in TRY | One request per fund type for the last 7 days (no fund codes, no account data) |
-| **TCMB** | Daily exchange rates published by the Turkish central bank | One request for `today.xml` |
+| **TEFAS** | Daily unit prices of Turkish investment (`YAT`) and pension (`EMK`) funds, in TRY | Refresh: one request per fund type for the last 7 days (no fund codes, no account data). History: one request per fund code and month, once |
+| **TCMB** | Daily exchange rates published by the Turkish central bank | Refresh: one request for `today.xml`. History: one archive file per business day, once |
 
 Both are enabled by default. In **Settings › Market data providers**, each has an
 On/Off switch. A disabled provider makes no network requests, and the prices or
 rates it stored earlier are still used for valuation. Requests identify
 themselves as `Mizan/<version>`; Mizan never imitates a browser.
+
+## Price history cache
+
+Daily fund prices and exchange rates from the past are kept in one cache file
+per computer, shared by every Mizan database on it:
+
+| | |
+|---|---|
+| Location | `~/.mizan/market-history.sqlite`, or `$MIZAN_HOME/market-history.sqlite` when `MIZAN_HOME` is set |
+| Contents | TEFAS fund prices by fund code, TCMB exchange rates by currency, the fund type of each code, and a record of every month or day already fetched |
+| Never contains | Accounts, statement identifiers, quantities, activities, manual prices, or anything else from your database |
+
+Every refresh also writes the prices and rates it fetched into the cache. Each
+fund-month and each TCMB day is downloaded once; months and days that returned
+nothing (weekends, holidays, dates before a fund existed) are recorded too, so
+they are not asked for again. Only the current month and the last 7 days are
+checked again for newly published data.
+
+### History backfill
+
+After every successful refresh, Mizan fills in missing history in the
+background:
+
+- **Fund prices** for each asset priced from TEFAS, from its first activity,
+  one fund and one month per request, at least 10 seconds apart. The benchmark
+  fund (Performance) is downloaded from the portfolio's first activity, even if
+  you don't hold it. History is planned from your activities, so nothing is
+  downloaded until something is imported; a new benchmark is picked up at the
+  next refresh.
+- **Exchange rates** from TCMB's daily archive
+  (`https://www.tcmb.gov.tr/kurlar/YYYYMM/DDMMYYYY.xml`), one business day per
+  request, one a second, from the first activity in a currency other than TRY
+  (or from the first activity when the base currency isn't TRY). A
+  TRY-only portfolio needs no exchange-rate history.
+- **Newest first**, so recent periods are complete within minutes, and both
+  providers are interleaved.
+- **Resumable:** each month or day is saved as soon as it arrives. Quitting the
+  app stops the backfill; the next refresh continues where it stopped.
+- **Failures** stop that provider for the run without touching cached data;
+  the other provider continues. The error shows in Settings.
+- **Five-year limit:** TEFAS serves no prices older than five years. Returns
+  value older days at trade prices from your own activities, marked as
+  estimates.
+
+**Settings › Price history** shows each provider's state (downloading with
+"34 of 120 months", complete, waiting for the next refresh, failed with the
+reason, off, or not needed) and the cache location. A disabled provider
+downloads no history, and with "refresh on start" off and no manual refresh,
+nothing is downloaded at all. The first backfill for a long history takes a
+while (about 80 minutes for 8 funds over five years); it happens once per
+computer.
+
+The cache holds public data only, so deleting `~/.mizan` is safe: the history
+is downloaded again when needed. Your database stays in the app data folder
+(see [desktop.md](desktop.md)).
 
 ## Refreshing
 
@@ -128,9 +183,16 @@ Response:
 - **No data in range:** `errorMessage` is `"Index 0 out of bounds for length 0"`
   with `resultList: null` (weekends, holidays, ranges with no prices).
 - **Bad input:** `errorMessage` holds a parse error, for example for a wrong date format.
-- **Limits** (reported by community clients and consistent with what was
-  observed): about one month per request and 6 requests per minute. Exceeding
-  the rate made the server close the connection with no reply.
+- **Limits:** at most one month per request and no start date more than five
+  years before today, both verified on 2026-11-02. Longer ranges are refused
+  with `"Geçersiz veri: Tarih aralığı 1 ayı aşamaz"`, older start dates with
+  `"Geçersiz veri: Baslangıc Tarihi 5 yıldan eski olamaz"`. About 6 requests
+  per minute (reported by community clients and consistent with what was
+  observed); exceeding the rate made the server close the connection with no
+  reply.
+- **Single fund:** with `fonKodu` set to one code, the response holds only that
+  fund's rows (21 rows for January 2022 for `AFT`, verified 2026-11-02). History
+  requests use this; the latest-price refresh keeps using the bulk form.
 
 ### Strategy
 

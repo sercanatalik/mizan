@@ -6,7 +6,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use mizan_import::Date;
-use mizan_storage::{AssetId, FxRow, PriceRow, PriceSourceKind, StorageError, Store};
+use mizan_storage::{
+    AssetId, CachedFundPrice, CachedRate, FetchStatus, FetchedUnit, FxRow, HistoryCache, PriceRow,
+    PriceSourceKind, StorageError, Store,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::http::Http;
@@ -70,6 +73,7 @@ fn report(id: &str, status: SourceStatus, updated: usize, messages: Vec<String>)
 
 fn refresh_tefas(
     store: &mut Store,
+    cache: Option<&mut HistoryCache>,
     http: &dyn Http,
     today: Date,
     now: &str,
@@ -112,6 +116,11 @@ fn refresh_tefas(
         .iter()
         .map(|c| format!("{c}: fund not found"))
         .collect();
+    if let Some(cache) = cache {
+        if let Err(e) = cache_tefas(cache, &fetched, now) {
+            messages.push(format!("history cache not updated: {e}"));
+        }
+    }
     let status = match fetched.error {
         Some(e) => {
             messages.insert(0, e);
@@ -122,8 +131,61 @@ fn refresh_tefas(
     Ok(report(tefas::SOURCE, status, updated, messages))
 }
 
+/// Write the latest fund prices and the fund types they were listed under to the cache.
+fn cache_tefas(
+    cache: &mut HistoryCache,
+    fetched: &tefas::Fetched,
+    now: &str,
+) -> Result<(), StorageError> {
+    for (code, p) in &fetched.latest {
+        cache.upsert_fund_price(
+            &CachedFundPrice {
+                code: code.clone(),
+                date: p.date.to_string(),
+                price: p.price.normalize().to_string(),
+            },
+            now,
+        )?;
+    }
+    for (code, fund_type) in &fetched.fund_types {
+        cache.set_fund_type(code, fund_type)?;
+    }
+    Ok(())
+}
+
+/// Write one TCMB day to the cache and mark that day fetched.
+pub(crate) fn cache_tcmb_day(
+    cache: &mut HistoryCache,
+    date: Date,
+    rates: &[tcmb::Rate],
+    now: &str,
+) -> Result<(), StorageError> {
+    cache.commit_unit(&FetchedUnit {
+        source: tcmb::SOURCE.into(),
+        key: crate::backfill::TCMB_KEY.into(),
+        period: date.to_string(),
+        status: if rates.is_empty() {
+            FetchStatus::None
+        } else {
+            FetchStatus::Ok
+        },
+        fund_prices: vec![],
+        rates: rates
+            .iter()
+            .map(|r| CachedRate {
+                currency: r.currency.to_string(),
+                date: r.date.to_string(),
+                try_per_unit: r.try_per_unit.to_string(),
+                source: tcmb::SOURCE.into(),
+            })
+            .collect(),
+        fetched_at: now.into(),
+    })
+}
+
 fn refresh_tcmb(
     store: &mut Store,
+    cache: Option<&mut HistoryCache>,
     http: &dyn Http,
     now: &str,
 ) -> Result<SourceReport, StorageError> {
@@ -146,12 +208,22 @@ fn refresh_tcmb(
                     now,
                 )?;
             }
-            let date = rates
+            let mut messages: Vec<String> = rates
                 .first()
                 .map(|r| format!("rates dated {}", r.date))
                 .into_iter()
                 .collect();
-            Ok(report(tcmb::SOURCE, SourceStatus::Ok, rates.len(), date))
+            if let (Some(cache), Some(first)) = (cache, rates.first()) {
+                if let Err(e) = cache_tcmb_day(cache, first.date, &rates, now) {
+                    messages.push(format!("history cache not updated: {e}"));
+                }
+            }
+            Ok(report(
+                tcmb::SOURCE,
+                SourceStatus::Ok,
+                rates.len(),
+                messages,
+            ))
         }
         Err(e) => Ok(report(
             tcmb::SOURCE,
@@ -163,9 +235,12 @@ fn refresh_tcmb(
 }
 
 /// Run one refresh. `now` is an RFC 3339 timestamp used for fetch times and the log.
-/// The clock is passed in to keep this testable.
+/// The clock is passed in to keep this testable. When a history cache is given,
+/// fetched prices and rates are also written to it; a cache failure is reported
+/// in the source's messages and never fails the refresh.
 pub fn refresh(
     store: &mut Store,
+    mut cache: Option<&mut HistoryCache>,
     http: &dyn Http,
     today: Date,
     now: &str,
@@ -178,8 +253,8 @@ pub fn refresh(
             continue;
         }
         let r = match p.id {
-            tefas::SOURCE => refresh_tefas(store, http, today, now)?,
-            tcmb::SOURCE => refresh_tcmb(store, http, now)?,
+            tefas::SOURCE => refresh_tefas(store, cache.as_deref_mut(), http, today, now)?,
+            tcmb::SOURCE => refresh_tcmb(store, cache.as_deref_mut(), http, now)?,
             _ => continue,
         };
         sources.push(r);

@@ -7,8 +7,8 @@ import { EMPTY, invokeFrom, renderApp } from "../test/render";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
-function serve(o: Overview) {
-  vi.mocked(invoke).mockImplementation(invokeFrom({ ...EMPTY, cmd_overview: o }) as typeof invoke);
+function serve(o: Overview, extra: Record<string, unknown> = {}) {
+  vi.mocked(invoke).mockImplementation(invokeFrom({ ...EMPTY, cmd_overview: o, ...extra }) as typeof invoke);
 }
 
 beforeEach(() => {
@@ -71,7 +71,7 @@ test("with prices: base total, oldest price date, exclusions and account totals"
   expect(value).toHaveTextContent("Prices as of 14 Oct 2026 or later");
   expect(value).toHaveTextContent("excludes 1 position without a price");
   expect(screen.getAllByTestId("account-total").map((e) => e.textContent)).toEqual(["438873.00 TRY", "88089.60 TRY", "0.00 TRY"]);
-  expect(screen.getByRole("region", { name: "Value chart" })).toHaveTextContent("Returns engine needed");
+  expect(screen.queryByRole("region", { name: "Value chart" })).not.toBeInTheDocument();
 });
 
 test("background refresh shows an indicator", async () => {
@@ -116,4 +116,41 @@ test("everything in order", async () => {
   serve({ ...overview, accounts: [overview.accounts[0]!], attention: [] });
   renderApp("/");
   expect(await screen.findByText("Everything is in order.")).toBeInTheDocument();
+});
+
+const points = [
+  { date: "2026-10-30", value: "1000.00", contributions: "1000.00", estimated: true },
+  { date: "2026-10-31", value: null, contributions: "1000.00", estimated: false },
+  { date: "2026-11-01", value: "1100.00", contributions: "1000.00", estimated: false },
+];
+const running = {
+  cmd_backfill_status: {
+    ...EMPTY.cmd_backfill_status,
+    sources: [{ ...EMPTY.cmd_backfill_status.sources[0], state: "running", done: 34, planned: 120 }, EMPTY.cmd_backfill_status.sources[1]],
+  },
+};
+
+test("value over time: chart with value and contributions", async () => {
+  serve({ ...overview, has_prices: true }, { cmd_value_history: { base_currency: "TRY", points, valued_days: 2 } });
+  renderApp("/");
+  const card = await screen.findByRole("region", { name: "Value chart" });
+  const chart = within(card).getByRole("img");
+  expect(chart).toHaveAccessibleName(/Value: 1100\.00 TRY at the end; Net contributions: 1000\.00 TRY at the end/);
+  expect(within(card).getByRole("list", { name: /legend/ })).toHaveTextContent("Estimated values");
+  expect(within(card).queryByRole("note")).not.toBeInTheDocument();
+});
+
+test("value over time while history downloads", async () => {
+  serve({ ...overview, has_prices: true }, { cmd_value_history: { base_currency: "TRY", points, valued_days: 2 }, ...running });
+  renderApp("/");
+  const note = await screen.findByRole("note");
+  expect(note).toHaveTextContent("Price history is still downloading (TEFAS 34 of 120 months)");
+});
+
+test("value over time before any history", async () => {
+  serve({ ...overview, has_prices: true }, { cmd_value_history: { base_currency: "TRY", points: points.slice(2), valued_days: 0 }, ...running });
+  renderApp("/");
+  const card = await screen.findByRole("region", { name: "Value chart" });
+  expect(card).toHaveTextContent("The value history appears once price history has been downloaded");
+  expect(card).toHaveTextContent("TEFAS: 34 of 120 months");
 });

@@ -13,7 +13,9 @@ pub type AccountId = i64;
 pub type AssetId = i64;
 pub type BatchId = i64;
 
+pub mod history;
 pub mod market;
+pub use history::{CachedFundPrice, CachedRate, Dated, FetchStatus, FetchedUnit, HistoryCache};
 pub use market::*;
 
 /// Migrations in order. The database's `user_version` records how many have run.

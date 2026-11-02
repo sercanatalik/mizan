@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AccountView } from "./generated/AccountView";
 import type { AssetView } from "./generated/AssetView";
+import type { BackfillProgress } from "./generated/BackfillProgress";
 import type { BatchView } from "./generated/BatchView";
 import type { CommitView } from "./generated/CommitView";
 import type { Contributions } from "./generated/Contributions";
@@ -14,6 +15,9 @@ import type { MapperPreview } from "./generated/MapperPreview";
 import type { OpenResult } from "./generated/OpenResult";
 import type { SavedMapping } from "./generated/SavedMapping";
 import type { Overview } from "./generated/Overview";
+import type { PerformanceView } from "./generated/PerformanceView";
+import type { Period } from "./generated/Period";
+import type { ValueHistory } from "./generated/ValueHistory";
 import type { RefreshReport } from "./generated/RefreshReport";
 import type { SettingsView } from "./generated/SettingsView";
 
@@ -49,6 +53,10 @@ export const api = {
   overview: () => invoke<Overview>("cmd_overview"),
   contributions: () => invoke<Contributions>("cmd_contributions"),
   accounts: () => invoke<AccountView[]>("cmd_accounts"),
+  // Returns
+  performance: (period: Period) => invoke<PerformanceView>("cmd_performance", { period }),
+  valueHistory: () => invoke<ValueHistory>("cmd_value_history"),
+  setBenchmark: (assetId: number | null) => invoke<void>("cmd_set_benchmark", { asset_id: assetId }),
   // Column mapper. `mapping` is the mapping file's TOML document as JSON.
   mapperInspect: (path: string, options: MapperOptions | null) => invoke<MapperInspect>("cmd_mapper_inspect", { path, options }),
   mapperPreview: (path: string, mapping: object) => invoke<MapperPreview>("cmd_mapper_preview", { path, mapping }),
@@ -56,6 +64,7 @@ export const api = {
   mapperExport: (id: string, dest: string) => invoke<void>("cmd_mapper_export", { id, dest }),
   // Market data
   refreshPrices: () => invoke<RefreshReport>("cmd_refresh_prices"),
+  backfillStatus: () => invoke<BackfillProgress>("cmd_backfill_status"),
   settings: () => invoke<SettingsView>("cmd_settings"),
   setProviderEnabled: (id: string, enabled: boolean) => invoke<void>("cmd_set_provider_enabled", { id, enabled }),
   setBaseCurrency: (currency: string) => invoke<void>("cmd_set_base_currency", { currency }),

@@ -22,4 +22,5 @@ ts-rs = { workspace = true, optional = true }
 ts = ["dep:ts-rs"]
 
 [dev-dependencies]
+mizan-core.workspace = true
 chrono = { workspace = true, features = ["clock"] }

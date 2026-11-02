@@ -95,3 +95,4 @@ export function Button({
     />
   );
 }
+export { LineChart, type ChartSeries, type LineChartProps } from "./LineChart";

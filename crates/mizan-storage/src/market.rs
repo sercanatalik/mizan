@@ -243,6 +243,23 @@ impl Store {
             .optional()?)
     }
 
+    /// Every stored rate of `currency`, oldest first (one per date and source).
+    pub fn fx_rates_for(&self, currency: &str) -> Result<Vec<FxRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT currency, date, source, try_per_unit FROM fx_rates WHERE currency = ?1
+             ORDER BY date, source",
+        )?;
+        let rows = stmt.query_map([currency], |r| {
+            Ok(FxRow {
+                currency: r.get(0)?,
+                date: r.get(1)?,
+                source: r.get(2)?,
+                try_per_unit: r.get(3)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Currencies with at least one stored rate.
     pub fn fx_currencies(&self) -> Result<Vec<String>> {
         let mut stmt = self

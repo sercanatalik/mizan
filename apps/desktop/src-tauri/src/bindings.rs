@@ -40,8 +40,11 @@ fn committed_desktop_bindings_match_generated() {
     crate::commands::AccountView::export_all(&cfg).unwrap();
     crate::market::SettingsView::export_all(&cfg).unwrap();
     crate::market::ProviderView::export_all(&cfg).unwrap();
+    crate::returns::PerformanceView::export_all(&cfg).unwrap();
+    crate::returns::BenchmarkOption::export_all(&cfg).unwrap();
     mizan_core::assets::AssetView::export_all(&cfg).unwrap();
     mizan_market::RefreshReport::export_all(&cfg).unwrap();
+    mizan_market::backfill::BackfillProgress::export_all(&cfg).unwrap();
     let generated = read_ts(&tmp);
     std::fs::remove_dir_all(&tmp).unwrap();
 

@@ -566,13 +566,26 @@ pub fn overview(store: &Store, today: Date) -> Result<Overview, StorageError> {
 
 // ---------------------------------------------------------------- contributions
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum Period {
+    OneMonth,
+    ThreeMonths,
     Ytd,
+    /// Shown as 1Y.
     Last12Months,
     SinceStart,
+}
+
+impl Period {
+    pub const ALL: [Period; 5] = [
+        Period::OneMonth,
+        Period::ThreeMonths,
+        Period::Ytd,
+        Period::Last12Months,
+        Period::SinceStart,
+    ];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -601,10 +614,18 @@ pub struct Contributions {
     pub periods: Vec<PeriodContributions>,
 }
 
-fn period_start(p: Period, today: Date) -> Option<Date> {
+/// First day of a period ending `today`; `None` for since start.
+pub fn period_start(p: Period, today: Date) -> Option<Date> {
     use chrono::Datelike;
     let t = today.0;
+    let months_back = |n: u32| {
+        t.checked_sub_months(chrono::Months::new(n))
+            .and_then(|d| d.succ_opt())
+            .map(Date)
+    };
     match p {
+        Period::OneMonth => months_back(1),
+        Period::ThreeMonths => months_back(3),
         Period::Ytd => chrono::NaiveDate::from_ymd_opt(t.year(), 1, 1).map(Date),
         Period::Last12Months => {
             let prev = t
@@ -647,7 +668,7 @@ pub fn contributions(store: &Store, today: Date) -> Result<Contributions, Storag
         activity.push((a, acts));
     }
     let mut periods = Vec::new();
-    for p in [Period::Ytd, Period::Last12Months, Period::SinceStart] {
+    for p in Period::ALL {
         let start = period_start(p, today);
         let mut total = BTreeMap::new();
         let mut per_account = Vec::new();

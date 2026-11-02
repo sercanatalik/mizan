@@ -1,6 +1,7 @@
 import { PageHeader } from "../app/Layout";
 import type { RefreshReport } from "../bridge/generated/RefreshReport";
-import { useSettings, useSettingsMutations } from "../bridge/queries";
+import type { SourceProgress } from "../bridge/generated/SourceProgress";
+import { useBackfillStatus, useSettings, useSettingsMutations } from "../bridge/queries";
 import { Badge, Card, DataTable } from "../ui";
 import { RefreshButton } from "./RefreshButton";
 
@@ -31,6 +32,65 @@ function Report({ report }: { report: RefreshReport }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+const HISTORY: Record<string, { label: string; tone: "accent" | "warn" | "neutral" }> = {
+  running: { label: "Downloading", tone: "accent" },
+  done: { label: "Complete", tone: "accent" },
+  waiting: { label: "Waiting", tone: "neutral" },
+  failed: { label: "Failed", tone: "warn" },
+  disabled: { label: "Disabled", tone: "neutral" },
+  idle: { label: "Not needed", tone: "neutral" },
+};
+
+/** One line describing a provider's history backfill. */
+export function historyText(s: SourceProgress): string {
+  const unit = s.unit === "days" ? "days" : "months";
+  switch (s.state) {
+    case "running":
+      return `${s.done} of ${s.planned} ${unit}`;
+    case "done":
+      return "All history needed is downloaded";
+    case "waiting":
+      return s.planned > 0 ? `${s.planned} ${unit} missing · continues after the next refresh` : "Continues after the next refresh";
+    case "failed":
+      return s.error ?? "Failed";
+    case "disabled":
+      return "Provider is off; no history is downloaded";
+    case "idle":
+      return s.id === "tcmb"
+        ? "Only TRY is used, or nothing is imported yet; no exchange rates needed"
+        : "Nothing to download: no fund priced from TEFAS has activities yet";
+  }
+}
+
+function PriceHistory() {
+  const { data } = useBackfillStatus();
+  if (!data) return null;
+  return (
+    <Card title="Price history" label="Price history">
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {data.sources.map((s) => (
+          <li key={s.id} data-testid="history-row" style={{ padding: "8px 0", borderTop: "1px solid var(--divider)", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+            <strong style={{ minWidth: 60 }}>{s.name}</strong>
+            <Badge tone={HISTORY[s.state]?.tone ?? "neutral"}>{HISTORY[s.state]?.label ?? s.state}</Badge>
+            <span style={{ fontSize: 13, color: s.state === "failed" ? "var(--warn-strong)" : "var(--text-secondary)" }}>{historyText(s)}</span>
+            {s.note && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.note}</span>}
+          </li>
+        ))}
+      </ul>
+      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+        Past prices and rates are downloaded once after a refresh and kept on this computer
+        {data.cache_path ? (
+          <>
+            {" "}
+            in <code>{data.cache_path}</code>
+          </>
+        ) : null}
+        . The cache holds public market data only; deleting it is safe.
+      </span>
+    </Card>
   );
 }
 
@@ -101,6 +161,7 @@ export function Settings() {
         </span>
         {data.last_report && <Report report={data.last_report} />}
       </Card>
+      <PriceHistory />
     </>
   );
 }

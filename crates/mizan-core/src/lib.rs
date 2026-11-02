@@ -9,6 +9,7 @@ pub mod pipeline;
 pub mod portfolio;
 pub mod replay;
 pub mod resolve;
+pub mod returns;
 pub mod review;
 pub mod valuation;
 

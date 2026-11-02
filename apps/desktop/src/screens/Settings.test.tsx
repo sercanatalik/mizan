@@ -72,3 +72,49 @@ test("refresh button triggers a refresh", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "Refresh prices" }));
   expect(invoke).toHaveBeenCalledWith("cmd_refresh_prices");
 });
+
+function progress(tefas: Record<string, unknown>, tcmb: Record<string, unknown> = {}) {
+  const base = EMPTY.cmd_backfill_status;
+  return {
+    cmd_backfill_status: {
+      ...base,
+      sources: [
+        { ...base.sources[0], ...tefas },
+        { ...base.sources[1], ...tcmb },
+      ],
+    },
+  };
+}
+
+test("shows price history progress and the cache location", async () => {
+  serve(progress({ state: "running", done: 34, planned: 120 }, { state: "done" }));
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("history-row");
+  expect(rows[0]).toHaveTextContent("Downloading");
+  expect(rows[0]).toHaveTextContent("34 of 120 months");
+  expect(rows[1]).toHaveTextContent("Complete");
+  expect(screen.getByRole("region", { name: "Price history" })).toHaveTextContent("/Users/a/.mizan/market-history.sqlite");
+});
+
+test("shows waiting, failed, disabled and the five-year note", async () => {
+  serve(
+    progress(
+      { state: "failed", error: "TEFAS request failed: connection closed", note: "Fund prices older than five years are not available from TEFAS." },
+      { state: "waiting", planned: 12 },
+    ),
+  );
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("history-row");
+  expect(rows[0]).toHaveTextContent("Failed");
+  expect(rows[0]).toHaveTextContent("connection closed");
+  expect(rows[0]).toHaveTextContent("older than five years");
+  expect(rows[1]).toHaveTextContent("12 days missing · continues after the next refresh");
+});
+
+test("idle and disabled history states", async () => {
+  serve(progress({ state: "disabled" }, { state: "idle" }));
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("history-row");
+  expect(rows[0]).toHaveTextContent("Provider is off");
+  expect(rows[1]).toHaveTextContent("Only TRY is used");
+});

@@ -1,0 +1,239 @@
+{
+ "errorCode": null,
+ "errorMessage": null,
+ "resultList": [
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-31",
+   "fiyat": 0.152312,
+   "tedPaySayisi": 23553873477,
+   "kisiSayisi": 53704,
+   "portfoyBuyukluk": 3587529015.33,
+   "borsaBultenFiyat": null,
+   "rn": 1
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-28",
+   "fiyat": 0.149182,
+   "tedPaySayisi": 23650296495,
+   "kisiSayisi": 53741,
+   "portfoyBuyukluk": 3528199892.66,
+   "borsaBultenFiyat": null,
+   "rn": 2
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-27",
+   "fiyat": 0.151167,
+   "tedPaySayisi": 23651793319,
+   "kisiSayisi": 53918,
+   "portfoyBuyukluk": 3575363116.47,
+   "borsaBultenFiyat": null,
+   "rn": 3
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-26",
+   "fiyat": 0.151379,
+   "tedPaySayisi": 23749795630,
+   "kisiSayisi": 54230,
+   "portfoyBuyukluk": 3595211069.71,
+   "borsaBultenFiyat": null,
+   "rn": 4
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-25",
+   "fiyat": 0.152262,
+   "tedPaySayisi": 23904585852,
+   "kisiSayisi": 54357,
+   "portfoyBuyukluk": 3639766507.15,
+   "borsaBultenFiyat": null,
+   "rn": 5
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-24",
+   "fiyat": 0.15366,
+   "tedPaySayisi": 24114443405,
+   "kisiSayisi": 54416,
+   "portfoyBuyukluk": 3705428180.84,
+   "borsaBultenFiyat": null,
+   "rn": 6
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-21",
+   "fiyat": 0.160125,
+   "tedPaySayisi": 24181606020,
+   "kisiSayisi": 54567,
+   "portfoyBuyukluk": 3872080599.03,
+   "borsaBultenFiyat": null,
+   "rn": 7
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-20",
+   "fiyat": 0.162234,
+   "tedPaySayisi": 24228537002,
+   "kisiSayisi": 55122,
+   "portfoyBuyukluk": 3930684815.96,
+   "borsaBultenFiyat": null,
+   "rn": 8
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-19",
+   "fiyat": 0.162928,
+   "tedPaySayisi": 24413107751,
+   "kisiSayisi": 55164,
+   "portfoyBuyukluk": 3977574457.55,
+   "borsaBultenFiyat": null,
+   "rn": 9
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-18",
+   "fiyat": 0.166808,
+   "tedPaySayisi": 24423912660,
+   "kisiSayisi": 54958,
+   "portfoyBuyukluk": 4074096643.6,
+   "borsaBultenFiyat": null,
+   "rn": 10
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-17",
+   "fiyat": 0.167078,
+   "tedPaySayisi": 24423912660,
+   "kisiSayisi": 54985,
+   "portfoyBuyukluk": 4080705989.53,
+   "borsaBultenFiyat": null,
+   "rn": 11
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-14",
+   "fiyat": 0.166269,
+   "tedPaySayisi": 24425441014,
+   "kisiSayisi": 54985,
+   "portfoyBuyukluk": 4061203390.71,
+   "borsaBultenFiyat": null,
+   "rn": 12
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-13",
+   "fiyat": 0.172516,
+   "tedPaySayisi": 24518190811,
+   "kisiSayisi": 55147,
+   "portfoyBuyukluk": 4229773026.69,
+   "borsaBultenFiyat": null,
+   "rn": 13
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-12",
+   "fiyat": 0.17124,
+   "tedPaySayisi": 24698359373,
+   "kisiSayisi": 55381,
+   "portfoyBuyukluk": 4229338847.99,
+   "borsaBultenFiyat": null,
+   "rn": 14
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-11",
+   "fiyat": 0.167979,
+   "tedPaySayisi": 24822990875,
+   "kisiSayisi": 55412,
+   "portfoyBuyukluk": 4169747534.4,
+   "borsaBultenFiyat": null,
+   "rn": 15
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-10",
+   "fiyat": 0.167971,
+   "tedPaySayisi": 24834562451,
+   "kisiSayisi": 55520,
+   "portfoyBuyukluk": 4171479167.14,
+   "borsaBultenFiyat": null,
+   "rn": 16
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-07",
+   "fiyat": 0.167794,
+   "tedPaySayisi": 24949742927,
+   "kisiSayisi": 55549,
+   "portfoyBuyukluk": 4186429164.46,
+   "borsaBultenFiyat": null,
+   "rn": 17
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-06",
+   "fiyat": 0.163844,
+   "tedPaySayisi": 24992091022,
+   "kisiSayisi": 55522,
+   "portfoyBuyukluk": 4094799095.69,
+   "borsaBultenFiyat": null,
+   "rn": 18
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-05",
+   "fiyat": 0.166076,
+   "tedPaySayisi": 24733005219,
+   "kisiSayisi": 55518,
+   "portfoyBuyukluk": 4107555815.63,
+   "borsaBultenFiyat": null,
+   "rn": 19
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-04",
+   "fiyat": 0.170867,
+   "tedPaySayisi": 24697761582,
+   "kisiSayisi": 55276,
+   "portfoyBuyukluk": 4220032536.54,
+   "borsaBultenFiyat": null,
+   "rn": 20
+  },
+  {
+   "fonKodu": "AFT",
+   "fonUnvan": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+   "tarih": "2022-01-03",
+   "fiyat": 0.16621,
+   "tedPaySayisi": 24702333285,
+   "kisiSayisi": 54871,
+   "portfoyBuyukluk": 4105767907.02,
+   "borsaBultenFiyat": null,
+   "rn": 21
+  }
+ ],
+ "toplamSayi": 21,
+ "toplamSayfa": 1
+}

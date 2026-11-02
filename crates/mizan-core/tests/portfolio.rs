@@ -698,3 +698,34 @@ fn manual_price_wins_its_day_in_valuation() {
         ("manual", Some("125.00"))
     );
 }
+
+#[test]
+fn contributions_for_the_last_month() {
+    let mut s = Store::open_in_memory().unwrap();
+    import(
+        &mut s,
+        'a',
+        vec![
+            rec("deposit", "2026-09-15", None, None, Some(usd("1000.00"))),
+            rec("deposit", "2026-10-05", None, None, Some(usd("250.00"))),
+            rec("withdrawal", "2026-10-20", None, None, Some(usd("50.00"))),
+        ],
+        vec![],
+    );
+    let c = contributions(&s, Date::parse("2026-11-01").unwrap()).unwrap();
+    let periods: Vec<Period> = c.periods.iter().map(|p| p.period).collect();
+    assert_eq!(periods, Period::ALL);
+    let m = c
+        .periods
+        .iter()
+        .find(|p| p.period == Period::OneMonth)
+        .unwrap();
+    assert_eq!(m.accounts[0].from.as_deref(), Some("2026-10-02"));
+    assert_eq!(m.total[0].amount, "+200.00");
+    let q = c
+        .periods
+        .iter()
+        .find(|p| p.period == Period::ThreeMonths)
+        .unwrap();
+    assert_eq!(q.total[0].amount, "+1200.00");
+}

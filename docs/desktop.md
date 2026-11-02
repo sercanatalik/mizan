@@ -36,6 +36,21 @@ On macOS the `.dmg` step drives Finder through AppleScript. If it fails with
 "Finder got an error", allow your terminal to control Finder (System Settings ›
 Privacy & Security › Automation) or build with `--bundles app`.
 
+### Release size
+
+Measured with `cargo tauri build --bundles app` on macOS (Apple silicon), from
+a clean checkout:
+
+| Version | `mizan-desktop` binary | `Mizan.app` | Clean release build |
+|---|---|---|---|
+| Market data (before the adapter runtime) | 20.4 MB | 19.5 MiB | 39 s |
+| Adapter runtime (QuickJS, TypeScript stripping, XLSX/PDF/OFX readers) | 30.0 MB | 28.7 MiB | 72 s |
+| Returns engine (history cache, backfill, returns, charts) | 30.6 MB | 29.3 MiB | not measured clean |
+
+The adapter runtime adds about 9.6 MB; the returns engine about 0.6 MB. Polars was evaluated for the returns
+engine and not adopted: a minimal program using it was 57 MB stripped, and its
+decimal type rounds products to a fixed scale.
+
 Frontend checks, as CI runs them:
 
 ```sh
@@ -48,7 +63,8 @@ npm test
 ## Network
 
 The app works offline. It goes online only to refresh prices (Refresh prices,
-or once on start when the last refresh is over a day old), and only to the
+or once on start when the last refresh is over a day old), and to download
+missing price history in the background after such a refresh, and only to the
 providers enabled in Settings. See [market-data.md](market-data.md).
 
 ## Where your data lives
@@ -63,6 +79,10 @@ folder on first launch and migrates it automatically:
 | Linux | `~/.local/share/org.mizan.desktop/mizan.db` |
 
 Column mappings you save are TOML files in the `adapters` folder beside it.
+Past fund prices and exchange rates are kept separately in
+`~/.mizan/market-history.sqlite` (or under `$MIZAN_HOME`), shared by every
+database on the computer; it holds public market data only and can be deleted
+safely.
 Back up or move `mizan.db` (and the `adapters` folder) to back up or move your data. Databases created with
 `mizan-cli` open in the app unchanged.
 
@@ -101,12 +121,12 @@ the screen says what is missing instead of showing a number.
 
 | Screen | Shows now | Waiting for |
 |---|---|---|
-| Overview | Portfolio total and per-account totals in the base currency, accounts with their latest balance check, items needing attention | Returns engine for the value chart |
+| Overview | Portfolio total and per-account totals in the base currency, value over time with net contributions (estimated stretches shaded), accounts with their latest balance check, items needing attention | Price history for days not downloaded yet |
 | Holdings | Positions and cash per account; price (as of), value, weight, unrealized gain; provisional average cost; flags | |
-| Performance | Net contributions (deposits minus withdrawals) by period | Returns engine for TWR, MWR, benchmark |
+| Performance | Time- and money-weighted returns (portfolio and per account) for 1M, 3M, YTD, 1Y and since start, benchmark return and growth chart, net contributions; estimates and missing exchange rates are labelled (see [returns.md](returns.md)) | |
 | Imports | Statement files through adapters, column mapper, full review, commit, history and undo | AI-assisted column mapper |
 | Assets | Price source per asset, TEFAS suggestions, manual prices, merging duplicates | |
-| Settings | Base currency, market data providers (on/off), refresh on start, last refresh report | |
+| Settings | Base currency, market data providers (on/off), refresh on start, last refresh report, price history download state and cache location | |
 | Activity, Income, Accounts | Placeholder | Later changes |
 
 Prices come from the built-in TEFAS and TCMB providers or from manual entry; see

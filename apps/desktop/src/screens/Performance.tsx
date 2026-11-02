@@ -1,16 +1,161 @@
 import { useState } from "react";
 import { PageHeader } from "../app/Layout";
+import type { Figure } from "../bridge/generated/Figure";
 import type { Period } from "../bridge/generated/Period";
-import { useContributions } from "../bridge/queries";
-import { Card, DataTable, EmptyState, Segmented } from "../ui";
+import type { PerformanceView } from "../bridge/generated/PerformanceView";
+import { useContributions, usePerformance, useSetBenchmark } from "../bridge/queries";
+import { Card, DataTable, EmptyState, LineChart, Segmented } from "../ui";
 import { longDate } from "./format";
 import { NoData } from "./NoData";
 
-const RETURN_CARDS = ["Time-weighted return", "Money-weighted return", "Benchmark"];
+const PERIODS: { value: Period; label: string }[] = [
+  { value: "one_month", label: "1M" },
+  { value: "three_months", label: "3M" },
+  { value: "ytd", label: "YTD" },
+  { value: "last12_months", label: "1Y" },
+  { value: "since_start", label: "Since start" },
+];
+
+const muted = { fontSize: 12, color: "var(--text-muted)" } as const;
+
+function estimateText(f: Figure): string | null {
+  return f.estimated_days > 0 ? `estimate · ${f.estimated_days} day${f.estimated_days === 1 ? "" : "s"} at trade price or cost` : null;
+}
+
+/** A return figure, or "not available" with the reason; with the estimate mark when it applies. */
+export function FigureText({ figure, size = 13 }: { figure: Figure; size?: number }) {
+  if (!figure.value) {
+    return (
+      <span style={{ fontSize: Math.min(size, 13), color: "var(--text-muted)" }} data-testid="figure-na">
+        not available: {figure.reason}
+      </span>
+    );
+  }
+  const est = estimateText(figure);
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 2 }}>
+      <span className="num" style={{ fontSize: size, fontWeight: 500, color: figure.value.startsWith("−") ? "var(--loss)" : "var(--text)" }}>
+        {figure.value}
+        {figure.annualized && <span style={{ ...muted, fontWeight: 400, marginLeft: 6 }}>{figure.annualized} a year</span>}
+      </span>
+      {est && (
+        <span style={{ fontSize: 12, color: "var(--warn-strong)" }} data-testid="estimate">
+          {est}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function sinceLabel(from: string | null, clamped: boolean, to: string): string {
+  if (!from) return "";
+  return clamped ? `since ${longDate(from)}` : `${longDate(from)} – ${longDate(to)}`;
+}
+
+function BenchmarkPicker({ view }: { view: PerformanceView }) {
+  const set = useSetBenchmark();
+  return (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+      Benchmark
+      <select
+        value={view.benchmark_asset_id ?? ""}
+        onChange={(e) => set.mutate(e.target.value === "" ? null : Number(e.target.value))}
+        style={{ font: "inherit", padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border-strong)", maxWidth: 260 }}
+      >
+        <option value="">None</option>
+        {view.benchmark_options.map((o) => (
+          <option key={o.asset_id} value={o.asset_id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function Returns({ view }: { view: PerformanceView }) {
+  const r = view.returns;
+  const bench = r.benchmark;
+  const excludedNote = r.excluded.length ? `Excludes ${r.excluded.join("; ")}` : null;
+  return (
+    <>
+      <section aria-label="Returns" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 14 }}>
+        <Card title="Time-weighted return" label="Time-weighted return">
+          <FigureText figure={r.twr} size={26} />
+          <span style={muted}>How the investments did, independent of deposits and withdrawals</span>
+          {excludedNote && <span style={{ fontSize: 12, color: "var(--warn-strong)" }}>{excludedNote}</span>}
+        </Card>
+        <Card title="Money-weighted return" label="Money-weighted return">
+          <FigureText figure={r.mwr} size={26} />
+          <span style={muted}>Your return, including the timing of your deposits and withdrawals</span>
+        </Card>
+        <Card title="Benchmark" label="Benchmark" aside={<BenchmarkPicker view={view} />}>
+          {bench ? (
+            <>
+              <FigureText figure={bench.figure} size={26} />
+              <span style={muted}>{bench.name}</span>
+            </>
+          ) : (
+            <span style={muted}>Choose an asset with prices, for example a TEFAS fund, to compare against.</span>
+          )}
+        </Card>
+      </section>
+      <Card title="Growth" label="Growth chart" aside={<span style={muted}>Time-weighted, 100 at the start · {view.base_currency}</span>}>
+        {r.growth.length === 0 ? (
+          <EmptyState title="Nothing to show" message={r.twr.reason ? `Not available: ${r.twr.reason}.` : "No value history for this period."} />
+        ) : (
+          <LineChart
+            label="Growth"
+            dates={r.growth.map((g) => g.date)}
+            series={[
+              { name: "Portfolio", values: r.growth.map((g) => (g.portfolio === null ? null : Number(g.portfolio))), labels: r.growth.map((g) => g.portfolio) },
+              ...(bench && r.growth.some((g) => g.benchmark !== null)
+                ? [{ name: bench.name, values: r.growth.map((g) => (g.benchmark === null ? null : Number(g.benchmark))), labels: r.growth.map((g) => g.benchmark) }]
+                : []),
+            ]}
+            format={(v) => v.toFixed(0)}
+            formatDate={longDate}
+          />
+        )}
+      </Card>
+      <Card title="Accounts" label="Account returns">
+        <DataTable label="Account returns" minWidth={560}>
+          <thead>
+            <tr>
+              <th scope="col">Account</th>
+              <th scope="col">Period</th>
+              <th scope="col" style={{ textAlign: "right" }}>
+                Time-weighted
+              </th>
+              <th scope="col" style={{ textAlign: "right" }}>
+                Money-weighted
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {r.accounts.map((a) => (
+              <tr key={a.account_id} data-testid="return-row">
+                <td style={{ fontWeight: 500 }}>{a.name}</td>
+                <td style={{ ...muted, fontSize: 13 }}>{sinceLabel(a.from, a.clamped, r.to)}</td>
+                <td style={{ textAlign: "right" }}>
+                  <FigureText figure={a.twr} />
+                </td>
+                <td style={{ textAlign: "right" }}>
+                  <FigureText figure={a.mwr} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
+      </Card>
+    </>
+  );
+}
 
 export function Performance() {
   const { data } = useContributions();
   const [period, setPeriod] = useState<Period>("ytd");
+  const { data: perf } = usePerformance(period);
   if (!data) return <PageHeader title="Performance" />;
   const current = data.periods.find((p) => p.period === period);
   if ((data.periods[0]?.accounts.length ?? 0) === 0 || !current) {
@@ -21,41 +166,24 @@ export function Performance() {
       </>
     );
   }
+  const range = perf ? sinceLabel(perf.returns.from, perf.returns.clamped, perf.returns.to) : `to ${longDate(current.to)}`;
   return (
     <>
       <PageHeader
         title="Performance"
-        subtitle={`All accounts · to ${longDate(current.to)}`}
-        actions={
-          <Segmented
-            label="Period"
-            value={period}
-            onChange={setPeriod}
-            options={[
-              { value: "ytd", label: "YTD" },
-              { value: "last12_months", label: "12M" },
-              { value: "since_start", label: "Since start" },
-            ]}
-          />
-        }
+        subtitle={`All accounts · ${range}`}
+        actions={<Segmented label="Period" value={period} onChange={setPeriod} options={PERIODS} />}
       />
-      <section aria-label="Returns" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 14 }}>
-        {RETURN_CARDS.map((title) => (
-          <Card key={title} title={title}>
-            <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Needs the returns engine and market data.</span>
-          </Card>
-        ))}
-      </section>
-      <Card title="Growth" label="Growth chart">
-        <EmptyState title="Returns engine needed" message="The growth chart and benchmark comparison appear once the returns engine and market data are available." />
-      </Card>
-      <Card title="Net contributions" label="Net contributions" aside={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>Deposits minus withdrawals; internal transfers excluded</span>}>
+      {perf && <Returns view={perf} />}
+      <Card title="Net contributions" label="Net contributions" aside={<span style={muted}>Deposits minus withdrawals; internal transfers excluded</span>}>
         <DataTable label="Net contributions" minWidth={520}>
           <thead>
             <tr>
               <th scope="col">Account</th>
               <th scope="col">From</th>
-              <th scope="col" style={{ textAlign: "right" }}>Net contribution</th>
+              <th scope="col" style={{ textAlign: "right" }}>
+                Net contribution
+              </th>
             </tr>
           </thead>
           <tbody>

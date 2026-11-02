@@ -4,6 +4,7 @@ pub mod commands;
 pub mod mapper;
 pub mod market;
 pub mod menu;
+pub mod returns;
 pub mod session;
 pub mod state;
 
@@ -37,7 +38,11 @@ pub fn run() {
             commands::cmd_overview,
             commands::cmd_contributions,
             commands::cmd_accounts,
+            returns::cmd_performance,
+            returns::cmd_value_history,
+            returns::cmd_set_benchmark,
             market::cmd_refresh_prices,
+            market::cmd_backfill_status,
             market::cmd_settings,
             market::cmd_set_provider_enabled,
             market::cmd_set_base_currency,
@@ -64,6 +69,14 @@ pub fn run() {
             market::spawn_start_refresh(app.handle().clone());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Mizan");
+        .build(tauri::generate_context!())
+        .expect("error while building Mizan")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Stop the history backfill between units; completed units stay cached.
+                if let Some(st) = app.try_state::<state::AppState>() {
+                    st.cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+            }
+        });
 }
