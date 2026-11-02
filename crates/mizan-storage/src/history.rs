@@ -1,4 +1,5 @@
-//! The market-history cache: historical fund prices and exchange rates kept
+//! The market-history cache: historical fund prices, listed-asset closes and
+//! exchange rates kept
 //! once per machine in `~/.mizan/market-history.sqlite` (or under
 //! `$MIZAN_HOME`), shared by every database.
 //!
@@ -17,7 +18,10 @@ pub const CACHE_FILE: &str = "market-history.sqlite";
 pub const HOME_ENV: &str = "MIZAN_HOME";
 pub const HOME_DIR: &str = ".mizan";
 
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/history/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/history/0001_init.sql"),
+    include_str!("../migrations/history/0002_listed.sql"),
+];
 
 /// The folder for machine-wide Mizan data: `$MIZAN_HOME` when set and not
 /// empty, otherwise `.mizan` in the user's home directory.
@@ -86,6 +90,17 @@ pub struct CachedRate {
     pub date: String,
     pub try_per_unit: String,
     pub source: String,
+}
+
+/// A cached daily close of a listed stock or ETF.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CachedListedPrice {
+    /// Provider id (`yahoo`, `twelvedata`).
+    pub source: String,
+    pub symbol: String,
+    pub date: String,
+    pub close: String,
+    pub currency: String,
 }
 
 /// One fetched unit and the data it returned, committed together.
@@ -194,7 +209,54 @@ impl HistoryCache {
         Ok(())
     }
 
+    pub fn upsert_listed_price(&mut self, p: &CachedListedPrice, fetched_at: &str) -> Result<()> {
+        upsert_listed_price(&self.conn, p, fetched_at)
+    }
+
+    /// Store a listed symbol's closes and mark each of `years` (`YYYY`) fetched
+    /// with its status, in one transaction.
+    pub fn commit_listed(
+        &mut self,
+        source: &str,
+        symbol: &str,
+        years: &[(String, FetchStatus)],
+        prices: &[CachedListedPrice],
+        fetched_at: &str,
+    ) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        for p in prices {
+            upsert_listed_price(&tx, p, fetched_at)?;
+        }
+        for (year, status) in years {
+            tx.execute(
+                "INSERT INTO fetched (source, key, period, status, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(source, key, period) DO UPDATE SET
+                    status = excluded.status, fetched_at = excluded.fetched_at",
+                params![source, symbol, year, status.as_str(), fetched_at],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     // ---- reads ----
+
+    /// Every cached close of a listed symbol from one provider, oldest first.
+    pub fn listed_prices(&self, source: &str, symbol: &str) -> Result<Vec<CachedListedPrice>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT date, close, currency FROM listed_prices WHERE source = ?1 AND symbol = ?2 ORDER BY date",
+        )?;
+        let rows = stmt.query_map(params![source, symbol], |r| {
+            Ok(CachedListedPrice {
+                source: source.to_owned(),
+                symbol: symbol.to_owned(),
+                date: r.get(0)?,
+                close: r.get(1)?,
+                currency: r.get(2)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
 
     pub fn fund_type(&self, code: &str) -> Result<Option<String>> {
         Ok(self
@@ -337,6 +399,16 @@ fn upsert_fund_price(conn: &Connection, p: &CachedFundPrice, fetched_at: &str) -
         "INSERT INTO fund_prices (code, date, price, fetched_at) VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(code, date) DO UPDATE SET price = excluded.price, fetched_at = excluded.fetched_at",
         params![p.code, p.date, p.price, fetched_at],
+    )?;
+    Ok(())
+}
+
+fn upsert_listed_price(conn: &Connection, p: &CachedListedPrice, fetched_at: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO listed_prices (source, symbol, date, close, currency, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(source, symbol, date) DO UPDATE SET
+            close = excluded.close, currency = excluded.currency, fetched_at = excluded.fetched_at",
+        params![p.source, p.symbol, p.date, p.close, p.currency, fetched_at],
     )?;
     Ok(())
 }

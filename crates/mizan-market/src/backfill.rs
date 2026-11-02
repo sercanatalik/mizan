@@ -1,7 +1,7 @@
 //! Background backfill of price and exchange-rate history into the shared cache.
 //!
-//! [`plan`] works out which fund-months and TCMB days are missing, using the
-//! user database only for dates and fund codes. [`run`] fetches them newest
+//! [`plan`] works out which fund-months, listed symbol-years and TCMB days are
+//! missing, using the user database only for dates, fund codes and symbols. [`run`] fetches them newest
 //! first within provider limits and commits each unit to the cache on its own,
 //! so an interruption loses at most one unit and the next run resumes.
 
@@ -9,6 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use crate::listed::{ApiKey, Close, ListedError, ListedProvider, LISTED};
+use crate::{twelvedata, yahoo, NEEDS_KEY};
 use chrono::{Datelike, Duration as Days, NaiveDate, Weekday};
 use mizan_import::{Date, ImportRecord};
 use mizan_storage::{
@@ -32,7 +34,8 @@ const TRY_TYPES: [&str; 2] = ["YAT", "EMK"];
 
 // ---------------------------------------------------------------- inputs
 
-/// What the planner needs from a user database: dates and fund codes only.
+/// What the planner needs from a user database: dates, fund codes, provider
+/// symbols and the API keys of providers that need one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanInput {
     /// First activity date per TEFAS fund code.
@@ -41,6 +44,12 @@ pub struct PlanInput {
     pub fx_from: Option<Date>,
     pub tefas_enabled: bool,
     pub tcmb_enabled: bool,
+    /// First activity date per (listed provider, symbol).
+    pub listed: BTreeMap<(String, String), Date>,
+    /// Listed providers turned off in Settings.
+    pub listed_disabled: BTreeSet<String>,
+    /// Saved API keys, by provider.
+    pub keys: BTreeMap<String, ApiKey>,
 }
 
 fn record_currencies(r: &ImportRecord) -> impl Iterator<Item = &str> {
@@ -89,21 +98,43 @@ impl PlanInput {
             .map(|id| store.canonical_asset(id))
             .transpose()?;
         let mut tefas: BTreeMap<String, Date> = BTreeMap::new();
+        let mut listed: BTreeMap<(String, String), Date> = BTreeMap::new();
         for (asset, source) in store.price_sources()? {
-            let PriceSourceKind::Tefas { fund_code } = source else {
-                continue;
-            };
-            let code = fund_code.trim().to_uppercase();
-            if code.is_empty() {
-                continue;
-            }
             let held = first_by_asset.get(&asset).copied();
             let as_benchmark = (benchmark == Some(asset)).then_some(first_any).flatten();
-            if let Some(d) = [held, as_benchmark].into_iter().flatten().min() {
-                let e = tefas.entry(code).or_insert(d);
-                *e = (*e).min(d);
-            }
+            let Some(d) = [held, as_benchmark].into_iter().flatten().min() else {
+                continue;
+            };
+            let slot = match &source {
+                PriceSourceKind::Tefas { fund_code } => {
+                    let code = fund_code.trim().to_uppercase();
+                    if code.is_empty() {
+                        continue;
+                    }
+                    tefas.entry(code).or_insert(d)
+                }
+                other => match other.listed() {
+                    Some((provider, symbol)) => {
+                        let symbol = symbol.trim().to_uppercase();
+                        if symbol.is_empty() {
+                            continue;
+                        }
+                        listed.entry((provider.to_owned(), symbol)).or_insert(d)
+                    }
+                    None => continue,
+                },
+            };
+            *slot = (*slot).min(d);
         }
+        let listed_disabled = LISTED
+            .iter()
+            .filter(|p| !is_enabled(store, p.id))
+            .map(|p| p.id.to_owned())
+            .collect();
+        let keys = NEEDS_KEY
+            .iter()
+            .filter_map(|id| crate::api_key(store, id).map(|k| (id.to_string(), ApiKey(k))))
+            .collect();
         let fx_from = if base != "TRY" {
             first_any
         } else {
@@ -114,6 +145,9 @@ impl PlanInput {
             fx_from,
             tefas_enabled: is_enabled(store, tefas::SOURCE),
             tcmb_enabled: is_enabled(store, tcmb::SOURCE),
+            listed,
+            listed_disabled,
+            keys,
         })
     }
 }
@@ -131,6 +165,29 @@ pub struct TefasUnit {
     pub recheck: bool,
 }
 
+/// One request's worth of listed history: every missing year of one symbol,
+/// from the earliest missing year through today.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListedUnit {
+    pub source: String,
+    pub symbol: String,
+    /// `YYYY` and whether it was already fetched (asked again as a recheck).
+    pub years: Vec<(String, bool)>,
+    pub from: Date,
+    pub to: Date,
+}
+
+/// Plan state of one listed provider.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ListedPlan {
+    pub enabled: bool,
+    /// Some asset needs history from this provider.
+    pub needed: bool,
+    /// The provider needs a key and none is saved.
+    pub needs_key: bool,
+    pub key: Option<ApiKey>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Plan {
     /// Missing fund-months, newest first.
@@ -146,12 +203,35 @@ pub struct Plan {
     pub tcmb_enabled: bool,
     /// Planned TCMB days that were already fetched (rechecks).
     pub tcmb_done: BTreeSet<Date>,
+    /// Missing listed history, one unit per symbol.
+    pub listed: Vec<ListedUnit>,
+    /// Per listed provider id.
+    pub listed_state: BTreeMap<String, ListedPlan>,
 }
 
 impl Plan {
     /// Fund-months never fetched.
     pub fn tefas_missing(&self) -> usize {
         self.tefas.iter().filter(|u| !u.recheck).count()
+    }
+
+    /// Symbol-years planned for a listed provider.
+    pub fn listed_planned(&self, source: &str) -> usize {
+        self.listed
+            .iter()
+            .filter(|u| u.source == source)
+            .map(|u| u.years.len())
+            .sum()
+    }
+
+    /// Symbol-years never fetched for a listed provider.
+    pub fn listed_missing(&self, source: &str) -> usize {
+        self.listed
+            .iter()
+            .filter(|u| u.source == source)
+            .flat_map(|u| &u.years)
+            .filter(|(_, fetched)| !fetched)
+            .count()
     }
 
     /// TCMB days never fetched.
@@ -226,6 +306,51 @@ pub fn plan(input: &PlanInput, cache: &HistoryCache, today: Date) -> Result<Plan
             .sort_by(|a, b| b.period.cmp(&a.period).then(a.code.cmp(&b.code)));
     }
 
+    for p in LISTED {
+        let enabled = !input.listed_disabled.contains(p.id);
+        let key = input.keys.get(p.id).cloned();
+        let needs_key = NEEDS_KEY.contains(&p.id) && key.is_none();
+        let needed = input.listed.keys().any(|(src, _)| src == p.id);
+        out.listed_state.insert(
+            p.id.to_owned(),
+            ListedPlan {
+                enabled,
+                needed,
+                needs_key,
+                key,
+            },
+        );
+        if !enabled || needs_key {
+            continue;
+        }
+        for ((src, symbol), first) in input.listed.iter().filter(|((src, _), _)| src == p.id) {
+            if first.0 > t {
+                continue;
+            }
+            let done = cache.fetched(src, symbol)?;
+            let years: Vec<i32> = (first.0.year()..=t.year()).collect();
+            // The earliest year not yet fetched; the current year is always rechecked.
+            let earliest = years
+                .iter()
+                .copied()
+                .find(|y| !done.contains_key(&y.to_string()))
+                .unwrap_or(t.year());
+            let span: Vec<(String, bool)> = (earliest..=t.year())
+                .map(|y| (y.to_string(), done.contains_key(&y.to_string())))
+                .collect();
+            let from = NaiveDate::from_ymd_opt(earliest, 1, 1)
+                .expect("valid date")
+                .max(first.0);
+            out.listed.push(ListedUnit {
+                source: src.clone(),
+                symbol: symbol.clone(),
+                years: span,
+                from: Date(from),
+                to: today,
+            });
+        }
+    }
+
     if let (true, Some(from)) = (input.tcmb_enabled, input.fx_from) {
         let done = cache.fetched(tcmb::SOURCE, TCMB_KEY)?;
         let mut d = t;
@@ -258,6 +383,8 @@ pub enum BackfillState {
     Done,
     Failed,
     Disabled,
+    /// The provider needs an API key and none is saved.
+    NeedsKey,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,7 +399,7 @@ pub struct SourceProgress {
     /// Units this run set out to fetch.
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub planned: usize,
-    /// "months" (fund-months) or "days".
+    /// "months" (fund-months), "days" or "years" (symbol-years).
     pub unit: String,
     pub error: Option<String>,
     /// For example that prices older than five years are not available.
@@ -306,6 +433,8 @@ impl BackfillProgress {
             sources: vec![
                 src(tefas::SOURCE, "TEFAS", "months"),
                 src(tcmb::SOURCE, "TCMB", "days"),
+                src(yahoo::SOURCE, "Yahoo Finance", "years"),
+                src(twelvedata::SOURCE, "Twelve Data", "years"),
             ],
             cache_path,
         }
@@ -314,16 +443,29 @@ impl BackfillProgress {
     /// Progress at the start of running `plan`.
     pub fn for_plan(plan: &Plan, cache_path: Option<String>) -> Self {
         let mut p = Self::waiting(cache_path);
+        let listed = |id: &str| {
+            let st = plan.listed_state.get(id).cloned().unwrap_or_default();
+            (st.enabled, st.needed, st.needs_key, plan.listed_planned(id))
+        };
         let rows = [
-            (plan.tefas_enabled, plan.tefas_needed, plan.tefas.len()),
-            (plan.tcmb_enabled, plan.tcmb_needed, plan.tcmb.len()),
+            (
+                plan.tefas_enabled,
+                plan.tefas_needed,
+                false,
+                plan.tefas.len(),
+            ),
+            (plan.tcmb_enabled, plan.tcmb_needed, false, plan.tcmb.len()),
+            listed(yahoo::SOURCE),
+            listed(twelvedata::SOURCE),
         ];
-        for (s, (enabled, needed, n)) in p.sources.iter_mut().zip(rows) {
+        for (s, (enabled, needed, needs_key, n)) in p.sources.iter_mut().zip(rows) {
             s.planned = n;
             s.state = if !enabled {
                 BackfillState::Disabled
             } else if !needed {
                 BackfillState::Idle
+            } else if needs_key {
+                BackfillState::NeedsKey
             } else if n == 0 {
                 BackfillState::Done
             } else {
@@ -339,7 +481,12 @@ impl BackfillProgress {
     /// The state between runs: what is still missing, without fetching anything.
     pub fn at_rest(plan: &Plan, cache_path: Option<String>) -> Self {
         let mut p = Self::for_plan(plan, cache_path);
-        let missing = [plan.tefas_missing(), plan.tcmb_missing()];
+        let missing = [
+            plan.tefas_missing(),
+            plan.tcmb_missing(),
+            plan.listed_missing(yahoo::SOURCE),
+            plan.listed_missing(twelvedata::SOURCE),
+        ];
         for (s, n) in p.sources.iter_mut().zip(missing) {
             if s.state == BackfillState::Running || s.state == BackfillState::Done {
                 s.done = 0;
@@ -374,9 +521,12 @@ impl BackfillProgress {
 
 // ---------------------------------------------------------------- run
 
+#[derive(Clone, Copy)]
 enum Next {
     Tefas,
     Tcmb,
+    /// Index into [`LISTED`].
+    Listed(usize),
 }
 
 /// Fetch one fund-month, trying fund types when the code's type is unknown.
@@ -437,9 +587,55 @@ fn fetch_tefas_unit(
     })
 }
 
-/// Run a plan. Requests are spaced by provider (TEFAS 10 s, TCMB 1 s) and the
-/// two providers are interleaved, newest units first. A source stops at its
-/// first error; `cancel` stops everything between units. `notify` is called
+/// Fetch one listed unit (all its years in one span). Twelve Data spans longer
+/// than its point limit take several requests; their spacing advances `clock`.
+fn fetch_listed_unit(
+    http: &dyn Http,
+    provider: ListedProvider,
+    key: Option<&ApiKey>,
+    u: &ListedUnit,
+    clock: &mut Duration,
+) -> Result<Vec<Close>, ListedError> {
+    match provider.id {
+        yahoo::SOURCE => yahoo::fetch_span(http, &u.symbol, u.from, u.to),
+        _ => {
+            let key = key.map(|k| k.0.as_str()).unwrap_or("");
+            let extra = twelvedata::spans(u.from, u.to).len().saturating_sub(1) as u32;
+            let r = twelvedata::fetch_span(http, key, &u.symbol, u.from, u.to);
+            *clock += provider.interval * extra;
+            r
+        }
+    }
+}
+
+/// Commit a listed unit: its closes, and each year as ok (has closes) or none.
+fn commit_listed_unit(
+    cache: &mut HistoryCache,
+    u: &ListedUnit,
+    closes: &[Close],
+    now: &str,
+) -> Result<(), StorageError> {
+    let with_data: BTreeSet<String> = closes.iter().map(|c| c.date.0.year().to_string()).collect();
+    let years: Vec<(String, FetchStatus)> = u
+        .years
+        .iter()
+        .map(|(y, _)| {
+            let status = if with_data.contains(y) {
+                FetchStatus::Ok
+            } else {
+                FetchStatus::None
+            };
+            (y.clone(), status)
+        })
+        .collect();
+    let prices = crate::refresh::cached_closes(&u.source, &u.symbol, closes);
+    cache.commit_listed(&u.source, &u.symbol, &years, &prices, now)
+}
+
+/// Run a plan. Requests are spaced by provider (TEFAS 10 s, TCMB 1 s, Yahoo
+/// 2 s, Twelve Data 8 s) and the providers are interleaved, newest units
+/// first. A source stops at its first error (an unknown listed symbol is noted
+/// and skipped); `cancel` stops everything between units. `notify` is called
 /// with the progress after every unit.
 pub fn run(
     plan: &Plan,
@@ -452,16 +648,28 @@ pub fn run(
     let mut progress =
         BackfillProgress::for_plan(plan, cache.path().map(|p| p.display().to_string()));
     notify(&progress);
+    let running = |p: &BackfillProgress, id: &str| {
+        p.source(id).map(|s| s.state) == Some(BackfillState::Running)
+    };
     let mut tefas_q = plan.tefas.iter().peekable();
     let mut tcmb_q = plan.tcmb.iter().peekable();
+    let mut listed_q: Vec<_> = LISTED
+        .iter()
+        .map(|p| {
+            plan.listed
+                .iter()
+                .filter(move |u| u.source == p.id)
+                .peekable()
+        })
+        .collect();
     // Virtual clock: only pauses count, so real spacing is never shorter.
     let mut clock = Duration::ZERO;
     let mut tefas_at = Duration::ZERO;
     let mut tcmb_at = Duration::ZERO;
-    let mut tefas_on =
-        progress.source(tefas::SOURCE).map(|s| s.state) == Some(BackfillState::Running);
-    let mut tcmb_on =
-        progress.source(tcmb::SOURCE).map(|s| s.state) == Some(BackfillState::Running);
+    let mut listed_at = [Duration::ZERO; LISTED.len()];
+    let mut tefas_on = running(&progress, tefas::SOURCE);
+    let mut tcmb_on = running(&progress, tcmb::SOURCE);
+    let mut listed_on: Vec<bool> = LISTED.iter().map(|p| running(&progress, p.id)).collect();
 
     loop {
         if cancel.load(Ordering::SeqCst) {
@@ -473,18 +681,21 @@ pub fn run(
             notify(&progress);
             break;
         }
-        let tefas_ready = tefas_on && tefas_q.peek().is_some();
-        let tcmb_ready = tcmb_on && tcmb_q.peek().is_some();
-        let next = match (tefas_ready, tcmb_ready) {
-            (false, false) => break,
-            (true, false) => Next::Tefas,
-            (false, true) => Next::Tcmb,
-            (true, true) if tefas_at <= tcmb_at => Next::Tefas,
-            (true, true) => Next::Tcmb,
-        };
-        let at = match next {
-            Next::Tefas => tefas_at,
-            Next::Tcmb => tcmb_at,
+        // The ready source whose next request is due first; ties keep this order.
+        let mut ready: Vec<(Duration, Next)> = Vec::new();
+        if tefas_on && tefas_q.peek().is_some() {
+            ready.push((tefas_at, Next::Tefas));
+        }
+        if tcmb_on && tcmb_q.peek().is_some() {
+            ready.push((tcmb_at, Next::Tcmb));
+        }
+        for (i, q) in listed_q.iter_mut().enumerate() {
+            if listed_on[i] && q.peek().is_some() {
+                ready.push((listed_at[i], Next::Listed(i)));
+            }
+        }
+        let Some(&(at, next)) = ready.iter().min_by_key(|(at, _)| *at) else {
+            break;
         };
         if at > clock {
             http.pause(at - clock);
@@ -533,6 +744,49 @@ pub fn run(
                         s.state = BackfillState::Failed;
                         s.error = Some(e);
                         tcmb_on = false;
+                    }
+                }
+            }
+            Next::Listed(i) => {
+                let provider = LISTED[i];
+                let u = listed_q[i].next().expect("peeked");
+                let key = plan
+                    .listed_state
+                    .get(provider.id)
+                    .and_then(|st| st.key.as_ref());
+                let mut note = None;
+                let result = match fetch_listed_unit(http, provider, key, u, &mut clock) {
+                    Ok(closes) => {
+                        commit_listed_unit(cache, u, &closes, &stamp).map_err(|e| e.to_string())
+                    }
+                    Err(e @ ListedError::NotFound(_)) => {
+                        note = Some(e.to_string());
+                        commit_listed_unit(cache, u, &[], &stamp).map_err(|e| e.to_string())
+                    }
+                    Err(e) => Err(match key {
+                        Some(k) => twelvedata::scrub(&e.to_string(), &k.0),
+                        None => e.to_string(),
+                    }),
+                };
+                listed_at[i] = clock + provider.interval;
+                let s = progress.source_mut(provider.id);
+                if let Some(n) = note {
+                    s.note = Some(match s.note.take() {
+                        Some(prev) => format!("{prev}; {n}"),
+                        None => n,
+                    });
+                }
+                match result {
+                    Ok(()) => {
+                        s.done += u.years.len();
+                        if listed_q[i].peek().is_none() {
+                            s.state = BackfillState::Done;
+                        }
+                    }
+                    Err(e) => {
+                        s.state = BackfillState::Failed;
+                        s.error = Some(e);
+                        listed_on[i] = false;
                     }
                 }
             }

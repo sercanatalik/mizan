@@ -43,6 +43,8 @@ export const EMPTY = {
     sources: [
       { id: "tefas", name: "TEFAS", state: "idle", done: 0, planned: 0, unit: "months", error: null, note: null },
       { id: "tcmb", name: "TCMB", state: "idle", done: 0, planned: 0, unit: "days", error: null, note: null },
+      { id: "yahoo", name: "Yahoo Finance", state: "idle", done: 0, planned: 0, unit: "years", error: null, note: null },
+      { id: "twelvedata", name: "Twelve Data", state: "idle", done: 0, planned: 0, unit: "years", error: null, note: null },
     ],
   },
   cmd_settings: {
@@ -51,8 +53,26 @@ export const EMPTY = {
     refresh_on_start: true,
     last_refresh_at: null,
     providers: [
-      { id: "tefas", name: "TEFAS", supplies: "Turkish investment and pension fund prices (TRY)", enabled: true, last_success: null },
-      { id: "tcmb", name: "TCMB", supplies: "Exchange rates from the Turkish central bank", enabled: true, last_success: null },
+      { id: "tefas", name: "TEFAS", supplies: "Turkish investment and pension fund prices (TRY)", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
+      { id: "tcmb", name: "TCMB", supplies: "Exchange rates from the Turkish central bank", enabled: true, last_success: null, needs_api_key: false, api_key_hint: null },
+      {
+        id: "yahoo",
+        name: "Yahoo Finance",
+        supplies: "US and European stock and ETF prices; unofficial source that may change without notice",
+        enabled: true,
+        last_success: null,
+        needs_api_key: false,
+        api_key_hint: null,
+      },
+      {
+        id: "twelvedata",
+        name: "Twelve Data",
+        supplies: "Stock and ETF prices with your free API key; the free plan covers US listings",
+        enabled: true,
+        last_success: null,
+        needs_api_key: true,
+        api_key_hint: null,
+      },
     ],
     last_report: null,
     refreshing: false,

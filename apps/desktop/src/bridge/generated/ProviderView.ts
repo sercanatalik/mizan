@@ -4,4 +4,12 @@ export type ProviderView = { id: string, name: string, supplies: string, enabled
 /**
  * When this provider last refreshed successfully.
  */
-last_success: string | null, };
+last_success: string | null, 
+/**
+ * Whether this provider needs an API key before it makes any request.
+ */
+needs_api_key: boolean, 
+/**
+ * The saved key's last four characters, masked ("••••3f9a"); never the key.
+ */
+api_key_hint: string | null, };

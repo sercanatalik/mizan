@@ -21,7 +21,7 @@ import type { ValueHistory } from "./generated/ValueHistory";
 import type { RefreshReport } from "./generated/RefreshReport";
 import type { SettingsView } from "./generated/SettingsView";
 
-export type PriceSourceKind = "tefas" | "manual" | "none";
+export type PriceSourceKind = "tefas" | "yahoo" | "twelvedata" | "manual" | "none";
 
 /** Errors from the Rust side arrive as `{ kind, message }`. */
 export interface AppError {
@@ -67,11 +67,14 @@ export const api = {
   backfillStatus: () => invoke<BackfillProgress>("cmd_backfill_status"),
   settings: () => invoke<SettingsView>("cmd_settings"),
   setProviderEnabled: (id: string, enabled: boolean) => invoke<void>("cmd_set_provider_enabled", { id, enabled }),
+  /** Save a provider's API key, or clear it with null. The key is never returned. */
+  setApiKey: (id: string, key: string | null) => invoke<void>("cmd_set_api_key", { id, key }),
   setBaseCurrency: (currency: string) => invoke<void>("cmd_set_base_currency", { currency }),
   setRefreshOnStart: (enabled: boolean) => invoke<void>("cmd_set_refresh_on_start", { enabled }),
   assets: () => invoke<AssetView[]>("cmd_assets"),
-  setPriceSource: (assetId: number, kind: PriceSourceKind, fundCode: string | null) =>
-    invoke<void>("cmd_set_price_source", { asset_id: assetId, kind, fund_code: fundCode }),
+  /** `symbol`: TEFAS fund code or provider symbol; null for manual and none. */
+  setPriceSource: (assetId: number, kind: PriceSourceKind, symbol: string | null) =>
+    invoke<void>("cmd_set_price_source", { asset_id: assetId, kind, symbol }),
   acceptSuggestion: (assetId: number) => invoke<void>("cmd_accept_suggestion", { asset_id: assetId }),
   addManualPrice: (assetId: number, date: string, value: string, currency: string) =>
     invoke<void>("cmd_add_manual_price", { asset_id: assetId, date, value, currency }),

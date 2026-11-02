@@ -1,19 +1,21 @@
 //! One refresh: ask each enabled provider for fresh data and store it.
 //!
 //! Failures are isolated per source and never delete or alter stored data.
-//! Disabled providers and assets without a provider source cause no requests.
+//! Disabled providers, providers missing their API key, and assets without a
+//! provider source cause no requests.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use mizan_import::Date;
 use mizan_storage::{
-    AssetId, CachedFundPrice, CachedRate, FetchStatus, FetchedUnit, FxRow, HistoryCache, PriceRow,
-    PriceSourceKind, StorageError, Store,
+    AssetId, CachedFundPrice, CachedListedPrice, CachedRate, FetchStatus, FetchedUnit, FxRow,
+    HistoryCache, PriceRow, PriceSourceKind, StorageError, Store,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::http::Http;
-use crate::{is_enabled, tcmb, tefas, PROVIDERS};
+use crate::listed::{listed_provider, Close, ListedError, ListedProvider};
+use crate::{api_key, is_enabled, tcmb, tefas, twelvedata, yahoo, PROVIDERS};
 
 pub const LAST_REFRESH_KEY: &str = "last_refresh_at";
 
@@ -26,6 +28,8 @@ pub enum SourceStatus {
     Disabled,
     /// Enabled, but nothing to fetch (for example no asset uses TEFAS).
     Idle,
+    /// Enabled with assets to price, but no API key is saved.
+    NeedsKey,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,6 +133,139 @@ fn refresh_tefas(
         None => SourceStatus::Ok,
     };
     Ok(report(tefas::SOURCE, status, updated, messages))
+}
+
+/// Assets priced from one listed provider, grouped by symbol.
+pub(crate) fn listed_assets(
+    store: &Store,
+    provider: &str,
+) -> Result<BTreeMap<String, Vec<AssetId>>, StorageError> {
+    let mut by_symbol: BTreeMap<String, Vec<AssetId>> = BTreeMap::new();
+    for (asset, source) in store.price_sources()? {
+        if let Some((p, symbol)) = source.listed() {
+            let symbol = symbol.trim().to_uppercase();
+            if p == provider && !symbol.is_empty() {
+                by_symbol.entry(symbol).or_default().push(asset);
+            }
+        }
+    }
+    for v in by_symbol.values_mut() {
+        v.sort_unstable();
+    }
+    Ok(by_symbol)
+}
+
+/// Fetch recent closes of one symbol from a listed provider.
+pub(crate) fn fetch_listed_latest(
+    provider: ListedProvider,
+    http: &dyn Http,
+    key: Option<&str>,
+    symbol: &str,
+) -> Result<Vec<Close>, ListedError> {
+    match provider.id {
+        yahoo::SOURCE => yahoo::fetch_latest(http, symbol),
+        _ => twelvedata::fetch_latest(http, key.unwrap_or(""), symbol),
+    }
+}
+
+pub(crate) fn cached_closes(
+    provider: &str,
+    symbol: &str,
+    closes: &[Close],
+) -> Vec<CachedListedPrice> {
+    closes
+        .iter()
+        .map(|c| CachedListedPrice {
+            source: provider.into(),
+            symbol: symbol.into(),
+            date: c.date.to_string(),
+            close: c.value.to_string(),
+            currency: c.currency.to_string(),
+        })
+        .collect()
+}
+
+fn refresh_listed(
+    store: &mut Store,
+    mut cache: Option<&mut HistoryCache>,
+    http: &dyn Http,
+    provider: ListedProvider,
+    now: &str,
+) -> Result<SourceReport, StorageError> {
+    let by_symbol = listed_assets(store, provider.id)?;
+    if by_symbol.is_empty() {
+        return Ok(report(
+            provider.id,
+            SourceStatus::Idle,
+            0,
+            vec![format!("no assets use {}", provider.name)],
+        ));
+    }
+    let key = api_key(store, provider.id);
+    if crate::NEEDS_KEY.contains(&provider.id) && key.is_none() {
+        return Ok(report(
+            provider.id,
+            SourceStatus::NeedsKey,
+            0,
+            vec!["needs an API key".into()],
+        ));
+    }
+    let mut updated = 0;
+    let mut messages = Vec::new();
+    let mut errors = 0;
+    let mut stopped = false;
+    let mut cache_error = None;
+    for (i, (symbol, assets)) in by_symbol.iter().enumerate() {
+        if i > 0 {
+            http.pause(provider.interval);
+        }
+        match fetch_listed_latest(provider, http, key.as_deref(), symbol) {
+            Ok(closes) => {
+                let Some(last) = closes.last() else {
+                    messages.push(format!("{symbol}: no recent prices"));
+                    continue;
+                };
+                for asset in assets {
+                    store.upsert_provider_price(&PriceRow {
+                        asset_id: *asset,
+                        date: last.date.to_string(),
+                        source: provider.id.into(),
+                        value: last.value.to_string(),
+                        currency: last.currency.to_string(),
+                        fetched_at: now.into(),
+                    })?;
+                    updated += 1;
+                }
+                if let Some(cache) = cache.as_deref_mut() {
+                    for p in cached_closes(provider.id, symbol, &closes) {
+                        if let Err(e) = cache.upsert_listed_price(&p, now) {
+                            cache_error = Some(e);
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(e) if e.stops_provider() => {
+                messages.insert(0, format!("{}: {e}", provider.name));
+                stopped = true;
+                break;
+            }
+            Err(e @ ListedError::NotFound(_)) => messages.push(e.to_string()),
+            Err(e) => {
+                errors += 1;
+                messages.push(format!("{symbol}: {e}"));
+            }
+        }
+    }
+    if let Some(e) = cache_error {
+        messages.push(format!("history cache not updated: {e}"));
+    }
+    let status = if stopped || (errors > 0 && errors == by_symbol.len()) {
+        SourceStatus::Failed
+    } else {
+        SourceStatus::Ok
+    };
+    Ok(report(provider.id, status, updated, messages))
 }
 
 /// Write the latest fund prices and the fund types they were listed under to the cache.
@@ -255,7 +392,10 @@ pub fn refresh(
         let r = match p.id {
             tefas::SOURCE => refresh_tefas(store, cache.as_deref_mut(), http, today, now)?,
             tcmb::SOURCE => refresh_tcmb(store, cache.as_deref_mut(), http, now)?,
-            _ => continue,
+            id => match listed_provider(id) {
+                Some(lp) => refresh_listed(store, cache.as_deref_mut(), http, lp, now)?,
+                None => continue,
+            },
         };
         sources.push(r);
     }

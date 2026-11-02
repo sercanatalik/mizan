@@ -11,9 +11,13 @@ other time.
 |---|---|---|
 | **TEFAS** | Daily unit prices of Turkish investment (`YAT`) and pension (`EMK`) funds, in TRY | Refresh: one request per fund type for the last 7 days (no fund codes, no account data). History: one request per fund code and month, once |
 | **TCMB** | Daily exchange rates published by the Turkish central bank | Refresh: one request for `today.xml`. History: one archive file per business day, once |
+| **Yahoo Finance** | Daily closes of US and European stocks and ETFs, no key needed | Refresh: one request per assigned symbol for the last month. History: one request per symbol for its missing years |
+| **Twelve Data** | Daily closes of stocks and ETFs with your free API key (the free plan covers US listings) | As Yahoo, with the key in a request header |
 
-Both are enabled by default. In **Settings › Market data providers**, each has an
-On/Off switch. A disabled provider makes no network requests, and the prices or
+All four are enabled by default. Yahoo Finance and Twelve Data are only asked
+for the symbols you assign to them on the Assets screen, so they make no
+requests until you do; Twelve Data also waits until you save a key. In
+**Settings › Market data providers**, each has an On/Off switch. A disabled provider makes no network requests, and the prices or
 rates it stored earlier are still used for valuation. Requests identify
 themselves as `Mizan/<version>`; Mizan never imitates a browser.
 
@@ -25,14 +29,15 @@ per computer, shared by every Mizan database on it:
 | | |
 |---|---|
 | Location | `~/.mizan/market-history.sqlite`, or `$MIZAN_HOME/market-history.sqlite` when `MIZAN_HOME` is set |
-| Contents | TEFAS fund prices by fund code, TCMB exchange rates by currency, the fund type of each code, and a record of every month or day already fetched |
-| Never contains | Accounts, statement identifiers, quantities, activities, manual prices, or anything else from your database |
+| Contents | TEFAS fund prices by fund code, stock and ETF closes by provider and symbol, TCMB exchange rates by currency, the fund type of each code, and a record of every month, year or day already fetched |
+| Never contains | Accounts, statement identifiers, quantities, activities, manual prices, API keys, or anything else from your database |
 
 Every refresh also writes the prices and rates it fetched into the cache. Each
 fund-month and each TCMB day is downloaded once; months and days that returned
 nothing (weekends, holidays, dates before a fund existed) are recorded too, so
-they are not asked for again. Only the current month and the last 7 days are
-checked again for newly published data.
+they are not asked for again. Stock and ETF history is recorded per symbol and
+calendar year. Only the current month (TEFAS), the current year (stocks and
+ETFs) and the last 7 days are checked again for newly published data.
 
 ### History backfill
 
@@ -45,6 +50,13 @@ background:
   you don't hold it. History is planned from your activities, so nothing is
   downloaded until something is imported; a new benchmark is picked up at the
   next refresh.
+- **Stock and ETF closes** for each asset priced from Yahoo Finance or Twelve
+  Data, from its first activity (a listed benchmark from the portfolio's first
+  activity). One request per symbol covers every missing year through today:
+  Yahoo requests at least 2 seconds apart, Twelve Data at least 8 (its free
+  plan allows 8 a minute; it serves at most 5,000 days per request, so a span
+  over 19 years takes more than one). There is no five-year limit. An unknown
+  symbol is noted in Settings and skipped.
 - **Exchange rates** from TCMB's daily archive
   (`https://www.tcmb.gov.tr/kurlar/YYYYMM/DDMMYYYY.xml`), one business day per
   request, one a second, from the first activity in a currency other than TRY
@@ -61,8 +73,9 @@ background:
   estimates.
 
 **Settings › Price history** shows each provider's state (downloading with
-"34 of 120 months", complete, waiting for the next refresh, failed with the
-reason, off, or not needed) and the cache location. A disabled provider
+"34 of 120 months" or "6 of 14 years", complete, waiting for the next refresh,
+waiting for an API key, failed with the reason, off, or not needed) and the
+cache location. A disabled provider
 downloads no history, and with "refresh on start" off and no manual refresh,
 nothing is downloaded at all. The first backfill for a long history takes a
 while (about 80 minutes for 8 funds over five years); it happens once per
@@ -81,21 +94,78 @@ is downloaded again when needed. Your database stays in the app data folder
   old. Uncheck it to keep the app fully offline.
 - **Failures:** a failing provider never stops the other one, and never deletes
   or changes stored data. Settings shows the last refresh report per provider:
-  OK, Failed (with the reason), Disabled, or Nothing to fetch.
+  OK, Failed (with the reason), Disabled, Nothing to fetch, or Needs an API key.
+  An unknown stock symbol is reported for that asset only ("NOSUCHXYZ: symbol
+  not found"). A rejected key or a provider's request limit stops that
+  provider for the rest of the refresh.
 - **Concurrency:** only one refresh runs at a time.
 
 ## Price sources
 
-Each asset has one price source, set on the **Assets** screen with **Edit**:
+Each asset has one price source, chosen on the **Assets** screen with **Edit**
+from the price-source menu, then **Save source**:
 
-- **Use TEFAS** with a fund code (for example `AFT`).
+- **TEFAS** with a fund code (for example `AFT`).
+- **Yahoo Finance** with a Yahoo symbol: `AAPL` for US listings, the symbol
+  plus an exchange suffix elsewhere (`VWCE.DE` for XETRA, `VUSA.L` for London,
+  `IWDA.AS` for Amsterdam).
+- **Twelve Data** with a Twelve Data symbol (for example `MSFT`).
 - **Manual:** only the prices you enter.
 - **None** (the default): the asset shows "no price".
 
-When an asset looks like a TEFAS fund (class `fund` or a TRY currency, with a
-three-letter upper-case symbol), Assets shows "Suggested: TEFAS AFT" with an
-**Accept** button. Nothing changes until you accept. Changing a source keeps the
-prices already stored.
+The provider sources need a code or symbol. If a provider is off in Settings,
+or Twelve Data has no key, the asset's source says so.
+
+Suggestions appear with an **Accept** button, and nothing changes until you
+accept:
+
+- **TEFAS** when an asset looks like a TEFAS fund (class `fund` or a TRY
+  currency, with a three-letter upper-case symbol): "TEFAS: AFT".
+- **Yahoo** when an imported symbol has a known exchange code (MIC), or no
+  exchange code and a USD currency: `VWCE` on `XETR` gives "Yahoo: VWCE.DE",
+  `BRK.B` on `XNYS` gives "Yahoo: BRK-B". Suffixes are known for the US
+  exchanges and XETRA, Frankfurt, Amsterdam, Paris, Brussels, Lisbon, Milan,
+  Madrid, London, SIX Swiss, Vienna, Stockholm, Copenhagen, Helsinki, Oslo and
+  Dublin. Suggestions are worked out on your computer; no request is made.
+
+Changing a source keeps the prices already stored.
+
+## Stock and ETF prices
+
+**Prices as traded.** Mizan stores each day's close as it was traded, not
+adjusted for later splits or dividends. Your imported quantities, splits and
+dividends already describe what happened, so adjusted prices would count a
+split twice.
+
+- **Yahoo** returns closes adjusted for later splits. Each request runs through
+  today and includes the split events, so Mizan multiplies each close by the
+  splits after it. Example: Yahoo shows AAPL at 124.8075 on 2020-08-28, before
+  the 4:1 split of 2020-08-31; Mizan stores 499.23.
+- **Twelve Data** is asked for unadjusted prices (`adjust=none`).
+
+**Decimals.** Closes are read from the response text, never through binary
+floating point. Yahoo closes are rounded to the decimals Yahoo declares for the
+symbol (`priceHint`), and Twelve Data closes to 4 decimals.
+
+**Minor units.** Prices quoted in pence or cents are converted: GBp and GBX to
+GBP, ILA to ILS, ZAc to ZAR, divided by 100.
+
+**Dates.** Each close is dated on the exchange's own trading day. During
+trading hours Yahoo's newest bar is the live price; the next refresh within 7
+days replaces it with the close.
+
+**The Twelve Data key.** Save it in **Settings › Market data providers**. It is
+stored in your database only and sent in the `Authorization` header, never in a
+URL. Settings shows only its last four characters, and it never appears in
+refresh reports or the history cache. **Clear key** removes it.
+
+**Yahoo is unofficial.** The chart endpoint is not a documented API and may
+change or stop working. A Yahoo failure never affects the other providers; you
+can switch it off and use Twelve Data or manual prices instead.
+
+**Privacy.** Asking a provider for a symbol tells it that someone at your
+network address is interested in it, as asking TEFAS for a fund code does.
+Mizan only asks for symbols you assigned.
 
 ## Manual prices
 
@@ -208,6 +278,38 @@ type are reported per asset as "fund not found".
 `Unit`, `ForexBuying`, …). Mizan stores `ForexBuying / Unit` as TRY per unit.
 No file is published on weekends or holidays (HTTP 404), and stored rates are
 then kept. A recorded file is in `crates/mizan-market/tests/fixtures/tcmb/`.
+
+## Yahoo Finance and Twelve Data API notes (verified 2026-11-02)
+
+**Yahoo:**
+- `GET https://query1.finance.yahoo.com/v8/finance/chart/{symbol}`:
+  - latest: `range=1mo&interval=1d&events=split`
+  - history: `period1=<from>&period2=<tomorrow>&interval=1d&events=split`, in
+    Unix seconds at midnight UTC
+- The answer is `chart.result[0]`, with:
+  - `meta.currency` (`USD`, `EUR`, `GBp`, …), `meta.priceHint` and
+    `meta.gmtoffset`
+  - `timestamp[]`, the bar opening times
+  - `indicators.quote[0].close[]`, split-adjusted, with `null` for missing bars
+  - `events.splits{}`, each with `date`, `numerator` and `denominator`
+- An unknown symbol answers HTTP 404 with
+  `chart.error.description = "No data found, symbol may be delisted"`.
+
+**Twelve Data:**
+- `GET https://api.twelvedata.com/time_series?symbol=…&interval=1day&adjust=none&order=asc`,
+  with either `outputsize=30` or `start_date`/`end_date` and
+  `outputsize=5000`.
+- The key goes in `Authorization: apikey <key>`.
+- The answer has `meta.currency` and `values[]`, each with `datetime` and
+  `close` as text.
+- Errors are `{"code", "message", "status": "error"}`:
+  - 401: invalid key
+  - 429: request limit
+  - 400/404: unknown symbol
+
+Recorded responses are in `crates/mizan-market/tests/fixtures/yahoo/` and
+`crates/mizan-market/tests/fixtures/twelvedata/`. Stooq, a common keyless
+source, now answers with a browser check and is not used.
 
 ## Tests
 

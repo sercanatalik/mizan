@@ -44,14 +44,14 @@ fn open_creates_the_folder_and_schema_and_reopens() {
     let dir = temp_dir("open").join("nested");
     {
         let mut c = HistoryCache::open(&dir).unwrap();
-        assert_eq!(c.schema_version().unwrap(), 1);
+        assert_eq!(c.schema_version().unwrap(), 2);
         assert_eq!(c.path().unwrap(), dir.join(CACHE_FILE));
         c.upsert_fund_price(&price("AFT", "2026-10-30", "0.959756"), "t")
             .unwrap();
     }
     assert!(dir.join(CACHE_FILE).exists());
     let c = HistoryCache::open(&dir).unwrap();
-    assert_eq!(c.schema_version().unwrap(), 1);
+    assert_eq!(c.schema_version().unwrap(), 2);
     assert_eq!(c.fund_prices("AFT").unwrap().len(), 1);
     let tables: Vec<String> = c
         .schema_columns()
@@ -59,7 +59,16 @@ fn open_creates_the_folder_and_schema_and_reopens() {
         .into_iter()
         .map(|(t, _)| t)
         .collect();
-    assert_eq!(tables, ["fetched", "fund_prices", "fund_types", "fx_rates"]);
+    assert_eq!(
+        tables,
+        [
+            "fetched",
+            "fund_prices",
+            "fund_types",
+            "fx_rates",
+            "listed_prices"
+        ]
+    );
 }
 
 #[test]
@@ -154,4 +163,53 @@ fn fund_types_are_remembered() {
     c.set_fund_type("AH2", "EMK").unwrap();
     c.set_fund_type("AH2", "EMK").unwrap();
     assert_eq!(c.fund_type("AH2").unwrap().as_deref(), Some("EMK"));
+}
+
+fn listed(symbol: &str, date: &str, close: &str) -> CachedListedPrice {
+    CachedListedPrice {
+        source: "yahoo".into(),
+        symbol: symbol.into(),
+        date: date.into(),
+        close: close.into(),
+        currency: "EUR".into(),
+    }
+}
+
+#[test]
+fn listed_prices_commit_years_together() {
+    let mut c = HistoryCache::open_in_memory().unwrap();
+    c.commit_listed(
+        "yahoo",
+        "VWCE.DE",
+        &[
+            ("2020".into(), FetchStatus::None),
+            ("2021".into(), FetchStatus::Ok),
+        ],
+        &[
+            listed("VWCE.DE", "2021-06-15", "98.12"),
+            listed("VWCE.DE", "2021-06-14", "97.50"),
+        ],
+        "2026-11-02T10:00:00Z",
+    )
+    .unwrap();
+    let rows = c.listed_prices("yahoo", "VWCE.DE").unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|r| (r.date.as_str(), r.close.as_str()))
+            .collect::<Vec<_>>(),
+        [("2021-06-14", "97.50"), ("2021-06-15", "98.12")]
+    );
+    assert_eq!(rows[0].currency, "EUR");
+    let done = c.fetched("yahoo", "VWCE.DE").unwrap();
+    assert_eq!(done.get("2020"), Some(&FetchStatus::None));
+    assert_eq!(done.get("2021"), Some(&FetchStatus::Ok));
+    assert!(c.listed_prices("twelvedata", "VWCE.DE").unwrap().is_empty());
+
+    // Re-fetching a year overwrites its closes, never duplicates.
+    c.upsert_listed_price(&listed("VWCE.DE", "2021-06-15", "98.20"), "t2")
+        .unwrap();
+    assert_eq!(
+        c.listed_prices("yahoo", "VWCE.DE").unwrap()[1].close,
+        "98.20"
+    );
 }

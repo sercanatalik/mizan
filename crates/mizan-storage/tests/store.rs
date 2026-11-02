@@ -66,7 +66,7 @@ fn new_batch(account_id: AccountId, asset_id: AssetId) -> NewBatch {
 #[test]
 fn migrations_apply_on_empty_database() {
     let store = Store::open_in_memory().unwrap();
-    assert_eq!(store.schema_version().unwrap(), 2);
+    assert_eq!(store.schema_version().unwrap(), 3);
     for t in [
         "accounts",
         "account_hints",
@@ -91,7 +91,7 @@ fn reopening_a_file_database_does_not_rerun_migrations() {
         s.create_account("IBKR", "U1").unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.schema_version().unwrap(), 2);
+    assert_eq!(s.schema_version().unwrap(), 3);
     assert_eq!(s.count("accounts").unwrap(), 1);
     std::fs::remove_dir_all(&dir).unwrap();
 }

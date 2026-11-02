@@ -4,7 +4,9 @@ use mizan_core::returns::series::{FlowAmount, PriceKind};
 use mizan_core::returns::*;
 use mizan_core::*;
 use mizan_import::{parse_batch_value, Code, Date};
-use mizan_storage::{CachedFundPrice, CachedRate, HistoryCache, PriceRow, PriceSourceKind, Store};
+use mizan_storage::{
+    CachedFundPrice, CachedListedPrice, CachedRate, HistoryCache, PriceRow, PriceSourceKind, Store,
+};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use std::str::FromStr;
@@ -384,6 +386,66 @@ fn stock_without_a_provider_is_valued_at_its_trade_price() {
     assert_eq!(v.estimated, 1);
     // The position_in on day 1 has no trade or cost yet: excluded and counted.
     assert_eq!(series[0].days[0].excluded, 1);
+}
+
+#[test]
+fn listed_stock_uses_cached_closes_instead_of_cost() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.set_setting("base_currency", "USD").unwrap();
+    import(
+        &mut s,
+        'a',
+        "U1",
+        vec![
+            json!({"kind": "buy", "date": "2026-01-05", "instrument": {"symbol": "AAPL", "isin": "US0000000001", "currency": "USD"}, "quantity": "10", "price": money("182.40", "USD"), "net_cash": money("1824.00", "USD")}),
+        ],
+    );
+    let a = asset_id(&s, "AAPL");
+    s.set_price_source(
+        a,
+        Some(&PriceSourceKind::Yahoo {
+            symbol: "aapl".into(),
+        }),
+    )
+    .unwrap();
+    let mut cache = HistoryCache::open_in_memory().unwrap();
+    let close = |date: &str, close: &str| CachedListedPrice {
+        source: "yahoo".into(),
+        symbol: "AAPL".into(),
+        date: date.into(),
+        close: close.into(),
+        currency: "USD".into(),
+    };
+    cache
+        .commit_listed(
+            "yahoo",
+            "AAPL",
+            &[("2026".into(), mizan_storage::FetchStatus::Ok)],
+            &[close("2026-01-05", "185.00"), close("2026-01-06", "190.50")],
+            "t",
+        )
+        .unwrap();
+    // Same symbol from another provider is not used.
+    cache
+        .upsert_listed_price(
+            &CachedListedPrice {
+                source: "twelvedata".into(),
+                ..close("2026-01-07", "999.00")
+            },
+            "t",
+        )
+        .unwrap();
+    let series = series_of(&s, Some(&cache), "2026-01-07");
+    let acc = &series[0];
+    assert_eq!(acc.day(day("2026-01-05")).unwrap().value, Some(d("26.00")));
+    assert_eq!(acc.day(day("2026-01-06")).unwrap().value, Some(d("81.00")));
+    let last = acc.day(day("2026-01-07")).unwrap();
+    // 10 × 190.50 carried into 2026-01-07, minus the 1824.00 paid.
+    assert_eq!(last.value, Some(d("81.00")));
+    assert!(
+        acc.days.iter().all(|v| v.estimated == 0),
+        "no cost estimates"
+    );
 }
 
 #[test]

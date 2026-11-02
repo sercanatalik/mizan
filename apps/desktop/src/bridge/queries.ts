@@ -125,6 +125,13 @@ export function valuesChanged(qc: QueryClient) {
   }
 }
 
+/** A provider switch or key changed: Settings, the asset notes and backfill state depend on it. */
+function providersChanged(qc: QueryClient) {
+  for (const k of [keys.settings, keys.assets, keys.backfill]) {
+    void qc.invalidateQueries({ queryKey: k });
+  }
+}
+
 export function useRefreshPrices() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: api.refreshPrices, onSettled: () => valuesChanged(qc) });
@@ -135,7 +142,11 @@ export function useSettingsMutations() {
   return {
     setProviderEnabled: useMutation({
       mutationFn: (a: { id: string; enabled: boolean }) => api.setProviderEnabled(a.id, a.enabled),
-      onSuccess: () => void qc.invalidateQueries({ queryKey: keys.settings }),
+      onSuccess: () => providersChanged(qc),
+    }),
+    setApiKey: useMutation({
+      mutationFn: (a: { id: string; key: string | null }) => api.setApiKey(a.id, a.key),
+      onSuccess: () => providersChanged(qc),
     }),
     setBaseCurrency: useMutation({ mutationFn: api.setBaseCurrency, onSuccess: () => valuesChanged(qc) }),
     setRefreshOnStart: useMutation({
@@ -155,7 +166,7 @@ export function useAssetMutations() {
   const done = () => valuesChanged(qc);
   return {
     setPriceSource: useMutation({
-      mutationFn: (a: { assetId: number; kind: PriceSourceKind; fundCode: string | null }) => api.setPriceSource(a.assetId, a.kind, a.fundCode),
+      mutationFn: (a: { assetId: number; kind: PriceSourceKind; symbol: string | null }) => api.setPriceSource(a.assetId, a.kind, a.symbol),
       onSuccess: done,
     }),
     acceptSuggestion: useMutation({ mutationFn: api.acceptSuggestion, onSuccess: done }),

@@ -1,33 +1,93 @@
 import { useState } from "react";
 import { PageHeader } from "../app/Layout";
 import { errorMessage } from "../bridge/api";
+import type { PriceSourceKind } from "../bridge/api";
 import type { AssetView } from "../bridge/generated/AssetView";
-import { useAssetMutations, useAssets } from "../bridge/queries";
+import type { ProviderView } from "../bridge/generated/ProviderView";
+import { useAssetMutations, useAssets, useSettings } from "../bridge/queries";
 import { Badge, Button, Card, DataTable, EmptyState } from "../ui";
 import { longDate } from "./format";
 import { RefreshButton } from "./RefreshButton";
 
 const input = { font: "inherit", fontSize: 13, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border-strong)" } as const;
 
+const SOURCE_OPTIONS: { kind: PriceSourceKind; label: string }[] = [
+  { kind: "none", label: "None" },
+  { kind: "manual", label: "Manual" },
+  { kind: "tefas", label: "TEFAS" },
+  { kind: "yahoo", label: "Yahoo Finance" },
+  { kind: "twelvedata", label: "Twelve Data" },
+];
+
+const BADGE_NAME: Record<string, string> = { tefas: "TEFAS", yahoo: "Yahoo", twelvedata: "Twelve Data" };
+
+const PLACEHOLDER: Partial<Record<PriceSourceKind, string>> = { tefas: "Code", yahoo: "e.g. VWCE.DE", twelvedata: "e.g. MSFT" };
+
+const hasSymbol = (k: PriceSourceKind) => k === "tefas" || k === "yahoo" || k === "twelvedata";
+
+/** The provider menu: choose a price source and, for providers, the fund code or symbol. */
 function SourceEditor({ a }: { a: AssetView }) {
   const m = useAssetMutations();
-  const [code, setCode] = useState(a.source.fund_code ?? "");
+  const [kind, setKind] = useState<PriceSourceKind>(a.source.kind);
+  const [symbol, setSymbol] = useState(a.source.symbol ?? "");
+  const [missing, setMissing] = useState(false);
   const busy = m.setPriceSource.isPending;
+  const save = () => {
+    const needs = hasSymbol(kind);
+    if (needs && !symbol.trim()) {
+      setMissing(true);
+      return;
+    }
+    setMissing(false);
+    m.setPriceSource.mutate({ assetId: a.asset_id, kind, symbol: needs ? symbol.trim() : null });
+  };
   return (
     <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-      <label className="visually-hidden" htmlFor={`code-${a.asset_id}`}>
-        TEFAS fund code for {a.label}
+      <label className="visually-hidden" htmlFor={`kind-${a.asset_id}`}>
+        Price source for {a.label}
       </label>
-      <input id={`code-${a.asset_id}`} style={{ ...input, width: 64 }} value={code} placeholder="Code" onChange={(e) => setCode(e.target.value.toUpperCase())} />
-      <Button small disabled={busy || !code.trim()} onClick={() => m.setPriceSource.mutate({ assetId: a.asset_id, kind: "tefas", fundCode: code.trim() })}>
-        Use TEFAS
+      <select
+        id={`kind-${a.asset_id}`}
+        style={input}
+        value={kind}
+        onChange={(e) => {
+          setKind(e.target.value as PriceSourceKind);
+          setMissing(false);
+        }}
+      >
+        {SOURCE_OPTIONS.map((o) => (
+          <option key={o.kind} value={o.kind}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {hasSymbol(kind) && (
+        <>
+          <label className="visually-hidden" htmlFor={`symbol-${a.asset_id}`}>
+            {kind === "tefas" ? `TEFAS fund code for ${a.label}` : `Symbol for ${a.label}`}
+          </label>
+          <input
+            id={`symbol-${a.asset_id}`}
+            style={{ ...input, width: kind === "tefas" ? 64 : 120 }}
+            value={symbol}
+            placeholder={PLACEHOLDER[kind]}
+            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+          />
+        </>
+      )}
+      <Button small disabled={busy} onClick={save}>
+        Save source
       </Button>
-      <Button small disabled={busy || a.source.kind === "manual"} onClick={() => m.setPriceSource.mutate({ assetId: a.asset_id, kind: "manual", fundCode: null })}>
-        Manual
-      </Button>
-      <Button small variant="ghost" disabled={busy || a.source.kind === "none"} onClick={() => m.setPriceSource.mutate({ assetId: a.asset_id, kind: "none", fundCode: null })}>
-        None
-      </Button>
+      {missing && (
+        <span role="alert" style={{ fontSize: 12, color: "var(--warn-strong)" }}>
+          A symbol is required
+        </span>
+      )}
+      {m.setPriceSource.error && (
+        <span role="alert" style={{ fontSize: 12, color: "var(--warn-strong)" }}>
+          {errorMessage(m.setPriceSource.error)}
+        </span>
+      )}
     </span>
   );
 }
@@ -101,16 +161,40 @@ function MergeControl({ a, all }: { a: AssetView; all: AssetView[] }) {
   );
 }
 
-function SourceCell({ a }: { a: AssetView }) {
+/** Why a provider source will not refresh right now, if it will not. */
+function providerNote(a: AssetView, providers: ProviderView[]): string | null {
+  const p = providers.find((x) => x.id === a.source.kind);
+  if (!p) return null;
+  if (!p.enabled) return "provider off in Settings";
+  if (p.needs_api_key && !p.api_key_hint) return "needs an API key";
+  return null;
+}
+
+function SourceCell({ a, providers }: { a: AssetView; providers: ProviderView[] }) {
   const m = useAssetMutations();
+  const name = BADGE_NAME[a.source.kind];
+  const note = providerNote(a, providers);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span>
-        {a.source.kind === "tefas" ? <Badge tone="accent">TEFAS · {a.source.fund_code}</Badge> : a.source.kind === "manual" ? <Badge>Manual</Badge> : <Badge>None</Badge>}
+      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+        {name ? (
+          <Badge tone="accent">
+            {name} · {a.source.symbol}
+          </Badge>
+        ) : a.source.kind === "manual" ? (
+          <Badge>Manual</Badge>
+        ) : (
+          <Badge>None</Badge>
+        )}
+        {note && (
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }} data-testid="source-note">
+            {note}
+          </span>
+        )}
       </span>
       {a.suggestion && (
         <span style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-          Suggested: TEFAS {a.suggestion}
+          Suggested: {a.suggestion.label}
           <Button small variant="primary" onClick={() => m.acceptSuggestion.mutate(a.asset_id)}>
             Accept
           </Button>
@@ -122,6 +206,8 @@ function SourceCell({ a }: { a: AssetView }) {
 
 export function Assets() {
   const { data } = useAssets();
+  const { data: settings } = useSettings();
+  const providers = settings?.providers ?? [];
   const m = useAssetMutations();
   const [editing, setEditing] = useState<number | null>(null);
   if (!data) return <PageHeader title="Assets" />;
@@ -172,7 +258,7 @@ export function Assets() {
                   </td>
                   <td style={{ color: "var(--text-secondary)" }}>{a.class}</td>
                   <td>
-                    <SourceCell a={a} />
+                    <SourceCell a={a} providers={providers} />
                     {a.merged_into && editing !== a.asset_id && <Badge>Merged into {a.merged_into.label}</Badge>}
                   </td>
                   <td className="num" style={{ textAlign: "right" }}>

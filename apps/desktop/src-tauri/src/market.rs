@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::atomic::Ordering;
 
 use chrono::{DateTime, Utc};
-use mizan_core::assets::{assets_view as core_assets_view, tefas_suggestion, AssetView};
+use mizan_core::assets::{assets_view as core_assets_view, suggestion, AssetView};
 use mizan_import::{Code, Date};
 use mizan_market::backfill::{self, BackfillProgress, BackfillState, PlanInput};
 use mizan_market::{Http, RefreshReport, SourceStatus, PROVIDERS};
@@ -31,6 +31,10 @@ pub struct ProviderView {
     pub enabled: bool,
     /// When this provider last refreshed successfully.
     pub last_success: Option<String>,
+    /// Whether this provider needs an API key before it makes any request.
+    pub needs_api_key: bool,
+    /// The saved key's last four characters, masked ("••••3f9a"); never the key.
+    pub api_key_hint: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -279,6 +283,8 @@ pub fn market_providers(state: &AppState) -> Result<Vec<ProviderView>, AppError>
                 .iter()
                 .find(|(id, _)| id == p.id)
                 .map(|(_, t)| t.clone()),
+            needs_api_key: mizan_market::NEEDS_KEY.contains(&p.id),
+            api_key_hint: mizan_market::api_key_hint(&store, p.id),
         })
         .collect())
 }
@@ -286,6 +292,13 @@ pub fn market_providers(state: &AppState) -> Result<Vec<ProviderView>, AppError>
 pub fn set_provider_enabled(state: &AppState, id: &str, enabled: bool) -> Result<(), AppError> {
     let mut store = state.store.lock().map_err(locked)?;
     Ok(mizan_market::set_enabled(&mut store, id, enabled)?)
+}
+
+/// Save (or with `None` or an empty key, clear) a provider's API key. The key is
+/// stored in the user database only and never returned.
+pub fn set_api_key(state: &AppState, id: &str, key: Option<&str>) -> Result<(), AppError> {
+    let mut store = state.store.lock().map_err(locked)?;
+    Ok(mizan_market::set_api_key(&mut store, id, key)?)
 }
 
 fn base_choices(store: &Store) -> Result<Vec<String>, AppError> {
@@ -356,18 +369,37 @@ fn fund_code(code: &str) -> Result<String, AppError> {
     Ok(c)
 }
 
-/// `kind`: "tefas" (with `fund_code`), "manual" or "none". Stored prices are kept.
+fn provider_symbol(kind: &str, symbol: &str) -> Result<String, AppError> {
+    let s = symbol.trim().to_uppercase();
+    if s.is_empty() {
+        return Err(invalid("a symbol is required"));
+    }
+    if s.len() > 32 || s.chars().any(char::is_whitespace) {
+        return Err(invalid(format!("{symbol:?} is not a {kind} symbol")));
+    }
+    Ok(s)
+}
+
+/// `kind`: "tefas" (fund code in `symbol`), "yahoo" or "twelvedata" (provider
+/// symbol), "manual" or "none". Stored prices are kept.
 pub fn set_price_source(
     state: &AppState,
     asset_id: i64,
     kind: &str,
-    code: Option<&str>,
+    symbol: Option<&str>,
 ) -> Result<(), AppError> {
     let mut store = state.store.lock().map_err(locked)?;
     ensure_asset(&store, asset_id)?;
+    let symbol = symbol.unwrap_or("");
     let source = match kind {
         "tefas" => Some(PriceSourceKind::Tefas {
-            fund_code: fund_code(code.unwrap_or(""))?,
+            fund_code: fund_code(symbol)?,
+        }),
+        "yahoo" => Some(PriceSourceKind::Yahoo {
+            symbol: provider_symbol("Yahoo", symbol)?,
+        }),
+        "twelvedata" => Some(PriceSourceKind::TwelveData {
+            symbol: provider_symbol("Twelve Data", symbol)?,
         }),
         "manual" => Some(PriceSourceKind::Manual),
         "none" => None,
@@ -382,9 +414,9 @@ pub fn accept_suggestion(state: &AppState, asset_id: i64) -> Result<(), AppError
     let mut store = state.store.lock().map_err(locked)?;
     let a = ensure_asset(&store, asset_id)?;
     let current = store.price_source(asset_id)?;
-    let code = tefas_suggestion(&a.hint, current.as_ref())
+    let s = suggestion(&a.hint, current.as_ref())
         .ok_or_else(|| invalid("this asset has no suggestion"))?;
-    store.set_price_source(asset_id, Some(&PriceSourceKind::Tefas { fund_code: code }))?;
+    store.set_price_source(asset_id, Some(&s))?;
     bump_generation(state);
     Ok(())
 }
@@ -540,12 +572,21 @@ pub async fn cmd_set_price_source(
     app: AppHandle,
     asset_id: i64,
     kind: String,
-    fund_code: Option<String>,
+    symbol: Option<String>,
 ) -> Result<(), AppError> {
     blocking(app, move |s| {
-        set_price_source(s, asset_id, &kind, fund_code.as_deref())
+        set_price_source(s, asset_id, &kind, symbol.as_deref())
     })
     .await
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn cmd_set_api_key(
+    app: AppHandle,
+    id: String,
+    key: Option<String>,
+) -> Result<(), AppError> {
+    blocking(app, move |s| set_api_key(s, &id, key.as_deref())).await
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -660,9 +701,13 @@ mod tests {
         let a = &assets_view(&state, day()).unwrap()[0];
         assert_eq!(a.latest_price.as_ref().unwrap().value, "0.959756");
         let p = market_providers(&state).unwrap();
-        assert!(p
-            .iter()
-            .all(|x| x.last_success.as_deref() == Some("2026-11-01T10:00:00Z")));
+        for x in &p {
+            let expected = match x.id.as_str() {
+                "tefas" | "tcmb" => Some("2026-11-01T10:00:00Z"),
+                _ => None, // no asset uses them: idle, not a success
+            };
+            assert_eq!(x.last_success.as_deref(), expected, "{}", x.id);
+        }
         let s = settings_view(&state).unwrap();
         assert_eq!(s.last_refresh_at.as_deref(), Some("2026-11-01T10:00:00Z"));
         assert!(s.last_report.is_some());
@@ -724,13 +769,13 @@ mod tests {
     fn asset_actions() {
         let (state, id) = state_with_fund();
         let a = &assets_view(&state, day()).unwrap()[0];
-        assert_eq!(a.suggestion.as_deref(), Some("AFT"));
+        assert_eq!(a.suggestion.as_ref().unwrap().label, "TEFAS: AFT");
         assert_eq!(a.source.kind, mizan_core::assets::SourceKind::None);
 
         assert!(set_price_source(&state, id, "tefas", Some("bad code!")).is_err());
         set_price_source(&state, id, "tefas", Some(" tcd ")).unwrap();
         let a = &assets_view(&state, day()).unwrap()[0];
-        assert_eq!(a.source.fund_code.as_deref(), Some("TCD"));
+        assert_eq!(a.source.symbol.as_deref(), Some("TCD"));
         assert!(a.suggestion.is_none(), "no suggestion once a source is set");
         assert!(accept_suggestion(&state, id).is_err());
 
@@ -766,6 +811,76 @@ mod tests {
             .unwrap()
             .iter()
             .all(|x| x.merged_into.is_none()));
+    }
+
+    #[test]
+    fn listed_sources_and_suggestions() {
+        let mut store = Store::open_in_memory().unwrap();
+        let hint = InstrumentHint {
+            symbol: Some("VWCE".into()),
+            mic: Some("XETR".into()),
+            currency: Some(Code::parse("EUR").unwrap()),
+            ..Default::default()
+        };
+        let id = store.create_asset("sym:VWCE@XETR", &hint).unwrap();
+        let state = AppState::new(store);
+        let a = &assets_view(&state, day()).unwrap()[0];
+        let sug = a.suggestion.as_ref().unwrap();
+        assert_eq!(
+            (sug.kind.clone(), sug.symbol.as_str(), sug.label.as_str()),
+            (
+                mizan_core::assets::SourceKind::Yahoo,
+                "VWCE.DE",
+                "Yahoo: VWCE.DE"
+            )
+        );
+        accept_suggestion(&state, id).unwrap();
+        let a = &assets_view(&state, day()).unwrap()[0];
+        assert_eq!(a.source.kind, mizan_core::assets::SourceKind::Yahoo);
+        assert_eq!(a.source.symbol.as_deref(), Some("VWCE.DE"));
+
+        let err = set_price_source(&state, id, "twelvedata", Some("  ")).unwrap_err();
+        assert!(err.to_string().contains("a symbol is required"), "{err}");
+        assert_eq!(
+            assets_view(&state, day()).unwrap()[0].source.kind,
+            mizan_core::assets::SourceKind::Yahoo,
+            "unchanged after a refused symbol"
+        );
+        set_price_source(&state, id, "twelvedata", Some("vwce")).unwrap();
+        let a = &assets_view(&state, day()).unwrap()[0];
+        assert_eq!(a.source.kind, mizan_core::assets::SourceKind::Twelvedata);
+        assert_eq!(a.source.symbol.as_deref(), Some("VWCE"));
+        assert!(set_price_source(&state, id, "yahoo", Some("A B")).is_err());
+    }
+
+    #[test]
+    fn api_key_is_saved_but_never_returned() {
+        let (state, _) = state_with_fund();
+        let key = "td-secret-0000-3f9a";
+        let td = |s: &SettingsView| {
+            s.providers
+                .iter()
+                .find(|p| p.id == "twelvedata")
+                .cloned()
+                .unwrap()
+        };
+        let s = settings_view(&state).unwrap();
+        assert!(td(&s).needs_api_key && td(&s).api_key_hint.is_none());
+        assert!(
+            !s.providers
+                .iter()
+                .find(|p| p.id == "yahoo")
+                .unwrap()
+                .needs_api_key
+        );
+        set_api_key(&state, "twelvedata", Some(key)).unwrap();
+        let s = settings_view(&state).unwrap();
+        assert_eq!(td(&s).api_key_hint.as_deref(), Some("••••3f9a"));
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(!json.contains(key), "settings never carry the key");
+        assert!(set_api_key(&state, "yahoo", Some("x")).is_err());
+        set_api_key(&state, "twelvedata", None).unwrap();
+        assert!(td(&settings_view(&state).unwrap()).api_key_hint.is_none());
     }
 
     #[test]

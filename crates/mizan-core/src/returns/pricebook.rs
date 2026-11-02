@@ -73,15 +73,30 @@ impl PriceBook {
                 let rank = if p.source == MANUAL { 0 } else { 1 };
                 put(slot, date, rank, (v, c));
             }
-            if let (Some(cache), Some(PriceSourceKind::Tefas { fund_code })) =
-                (cache, sources.get(&a.id))
-            {
-                let code = fund_code.trim().to_uppercase();
-                for p in cache.fund_prices(&code)? {
-                    if let (Ok(date), Some(v)) = (Date::parse(&p.date), dec(&p.value)) {
-                        put(slot, date, 2, (v, Code::parse("TRY").expect("valid")));
+            match (cache, sources.get(&a.id)) {
+                (Some(cache), Some(PriceSourceKind::Tefas { fund_code })) => {
+                    let code = fund_code.trim().to_uppercase();
+                    for p in cache.fund_prices(&code)? {
+                        if let (Ok(date), Some(v)) = (Date::parse(&p.date), dec(&p.value)) {
+                            put(slot, date, 2, (v, Code::parse("TRY").expect("valid")));
+                        }
                     }
                 }
+                (Some(cache), Some(src)) => {
+                    if let Some((provider, symbol)) = src.listed() {
+                        let symbol = symbol.trim().to_uppercase();
+                        for p in cache.listed_prices(provider, &symbol)? {
+                            if let (Ok(date), Some(v), Ok(c)) = (
+                                Date::parse(&p.date),
+                                dec(&p.close),
+                                Code::parse(&p.currency),
+                            ) {
+                                put(slot, date, 2, (v, c));
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
         }
         let prices = by_key

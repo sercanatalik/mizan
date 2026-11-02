@@ -39,7 +39,7 @@ fn migration_0002_applies_on_a_database_created_before_it() {
             .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.schema_version().unwrap(), 2);
+    assert_eq!(s.schema_version().unwrap(), 3);
     assert_eq!(s.count("accounts").unwrap(), 1, "existing data kept");
     assert_eq!(s.setting("base_currency").unwrap().as_deref(), Some("TRY"));
     assert_eq!(
@@ -256,4 +256,98 @@ fn refresh_log_keeps_latest() {
         s.last_refresh_report().unwrap().unwrap(),
         ("2026-11-01T11:00:00Z".to_string(), "{\"n\":2}".to_string())
     );
+}
+
+#[test]
+fn migration_0003_keeps_existing_price_sources() {
+    let dir = std::env::temp_dir().join(format!("mizan-market-mig3-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("v2.db");
+    let _ = std::fs::remove_file(&path);
+    {
+        // A database as the previous version left it: 0001 and 0002 applied.
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(include_str!("../migrations/0001_init.sql"))
+            .unwrap();
+        conn.execute_batch(include_str!("../migrations/0002_market.sql"))
+            .unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+        conn.execute_batch(
+            "INSERT INTO assets (id, instrument_key, hint_json) VALUES (1, 'sym:AFT@', '{}'), (2, 'sym:X@', '{}');
+             INSERT INTO price_sources (asset_id, provider, symbol) VALUES (1, 'tefas', 'AFT'), (2, 'manual', NULL);",
+        )
+        .unwrap();
+    }
+    let mut s = Store::open(&path).unwrap();
+    assert_eq!(s.schema_version().unwrap(), 3);
+    assert_eq!(
+        s.price_source(1).unwrap(),
+        Some(PriceSourceKind::Tefas {
+            fund_code: "AFT".into()
+        })
+    );
+    assert_eq!(s.price_source(2).unwrap(), Some(PriceSourceKind::Manual));
+    let yahoo = PriceSourceKind::Yahoo {
+        symbol: "VWCE.DE".into(),
+    };
+    s.set_price_source(2, Some(&yahoo)).unwrap();
+    assert_eq!(s.price_source(2).unwrap(), Some(yahoo));
+    drop(s);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn price_sources_round_trip_every_kind() {
+    let mut s = Store::open_in_memory().unwrap();
+    let a = asset(&mut s, "sym:A@");
+    for (given, stored) in [
+        (
+            PriceSourceKind::Tefas {
+                fund_code: " aft ".into(),
+            },
+            PriceSourceKind::Tefas {
+                fund_code: "AFT".into(),
+            },
+        ),
+        (
+            PriceSourceKind::Yahoo {
+                symbol: "vwce.de".into(),
+            },
+            PriceSourceKind::Yahoo {
+                symbol: "VWCE.DE".into(),
+            },
+        ),
+        (
+            PriceSourceKind::TwelveData {
+                symbol: "MSFT".into(),
+            },
+            PriceSourceKind::TwelveData {
+                symbol: "MSFT".into(),
+            },
+        ),
+        (PriceSourceKind::Manual, PriceSourceKind::Manual),
+    ] {
+        s.set_price_source(a, Some(&given)).unwrap();
+        assert_eq!(s.price_source(a).unwrap(), Some(stored));
+    }
+    s.set_price_source(a, None).unwrap();
+    assert_eq!(s.price_source(a).unwrap(), None);
+}
+
+#[test]
+fn empty_symbol_is_refused_and_source_unchanged() {
+    let mut s = Store::open_in_memory().unwrap();
+    let a = asset(&mut s, "sym:A@");
+    s.set_price_source(a, Some(&PriceSourceKind::Manual))
+        .unwrap();
+    let err = s
+        .set_price_source(
+            a,
+            Some(&PriceSourceKind::TwelveData {
+                symbol: "  ".into(),
+            }),
+        )
+        .unwrap_err();
+    assert!(err.to_string().contains("needs a symbol"), "{err}");
+    assert_eq!(s.price_source(a).unwrap(), Some(PriceSourceKind::Manual));
 }

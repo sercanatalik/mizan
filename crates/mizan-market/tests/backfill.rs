@@ -105,6 +105,7 @@ fn input(tefas: &[(&str, &str)], fx_from: Option<&str>) -> PlanInput {
         fx_from: fx_from.map(day),
         tefas_enabled: true,
         tcmb_enabled: true,
+        ..Default::default()
     }
 }
 
@@ -379,4 +380,310 @@ fn at_rest_counts_only_never_fetched_units() {
     let rest = backfill::BackfillProgress::at_rest(&after, None);
     assert_eq!(rest.source("tefas").unwrap().state, BackfillState::Done);
     assert_eq!(rest.source("tcmb").unwrap().state, BackfillState::Done);
+}
+
+// ---- listed (Yahoo Finance, Twelve Data) ----
+
+use mizan_market::listed::ApiKey;
+
+/// A Yahoo chart body with one bar per weekday from `from` to `to` (close 100).
+fn yahoo_span(url: &str) -> Result<Response, HttpError> {
+    let q = |name: &str| {
+        url.split(&format!("{name}="))
+            .nth(1)
+            .and_then(|r| r.split('&').next())
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap()
+    };
+    let (mut t, end) = (q("period1") + 14 * 3600, q("period2"));
+    let mut ts = Vec::new();
+    while t < end {
+        let wd = chrono::DateTime::from_timestamp(t, 0)
+            .unwrap()
+            .format("%a")
+            .to_string();
+        if wd != "Sat" && wd != "Sun" {
+            ts.push(t);
+        }
+        t += 86_400;
+    }
+    let closes = vec!["100.0"; ts.len()].join(",");
+    let ts: Vec<String> = ts.iter().map(|t| t.to_string()).collect();
+    ok(format!(
+        r#"{{"chart":{{"result":[{{"meta":{{"currency":"EUR","priceHint":2,"gmtoffset":3600}},"timestamp":[{}],"indicators":{{"quote":[{{"close":[{closes}]}}]}}}}],"error":null}}}}"#,
+        ts.join(",")
+    ))
+}
+
+fn listed_http(fail_yahoo: bool) -> FakeHttp {
+    FakeHttp::new(move |url, body| {
+        if url.starts_with(yahoo::BASE) {
+            if url.contains("NOSUCHXYZ") {
+                return Ok(Response {
+                    status: 404,
+                    body: r#"{"chart":{"result":null,"error":{"code":"Not Found","description":"No data found, symbol may be delisted"}}}"#.into(),
+                });
+            }
+            if fail_yahoo {
+                return Err(HttpError("connection reset".into()));
+            }
+            return yahoo_span(url);
+        }
+        match body {
+            Some(b) => tefas_answer(b),
+            None => tcmb_answer(url),
+        }
+    })
+}
+
+fn listed_input(rows: &[(&str, &str, &str)]) -> PlanInput {
+    PlanInput {
+        listed: rows
+            .iter()
+            .map(|(p, s, d)| ((p.to_string(), s.to_string()), day(d)))
+            .collect(),
+        tefas_enabled: true,
+        tcmb_enabled: true,
+        ..Default::default()
+    }
+}
+
+fn years(u: &backfill::ListedUnit) -> Vec<(&str, bool)> {
+    u.years.iter().map(|(y, f)| (y.as_str(), *f)).collect()
+}
+
+#[test]
+fn listed_plan_one_span_per_symbol_from_first_activity() {
+    let cache = HistoryCache::open_in_memory().unwrap();
+    let plan = backfill::plan(
+        &listed_input(&[("yahoo", "VWCE.DE", "2021-06-14")]),
+        &cache,
+        day("2026-11-20"),
+    )
+    .unwrap();
+    assert_eq!(plan.listed.len(), 1);
+    let u = &plan.listed[0];
+    assert_eq!((u.from, u.to), (day("2021-06-14"), day("2026-11-20")));
+    assert_eq!(
+        years(u),
+        [
+            ("2021", false),
+            ("2022", false),
+            ("2023", false),
+            ("2024", false),
+            ("2025", false),
+            ("2026", false)
+        ]
+    );
+    assert_eq!(plan.listed_missing("yahoo"), 6);
+    let p = backfill::BackfillProgress::for_plan(&plan, None);
+    let y = p.source("yahoo").unwrap();
+    assert_eq!(
+        (y.state, y.planned, y.unit.as_str()),
+        (BackfillState::Running, 6, "years")
+    );
+    assert_eq!(p.source("twelvedata").unwrap().state, BackfillState::Idle);
+}
+
+#[test]
+fn listed_cached_years_are_skipped_and_the_current_year_rechecked() {
+    let mut cache = HistoryCache::open_in_memory().unwrap();
+    let ok = |y: &str| (y.to_string(), FetchStatus::Ok);
+    cache
+        .commit_listed(
+            "yahoo",
+            "VWCE.DE",
+            &[
+                ok("2021"),
+                ok("2022"),
+                ok("2023"),
+                ok("2024"),
+                ok("2025"),
+                ok("2026"),
+            ],
+            &[],
+            "t",
+        )
+        .unwrap();
+    let inp = listed_input(&[("yahoo", "VWCE.DE", "2021-06-14")]);
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    let u = &plan.listed[0];
+    assert_eq!(years(u), [("2026", true)]);
+    assert_eq!(u.from, day("2026-01-01"));
+    assert_eq!(plan.listed_missing("yahoo"), 0);
+    assert_eq!(
+        backfill::BackfillProgress::at_rest(&plan, None)
+            .source("yahoo")
+            .unwrap()
+            .state,
+        BackfillState::Done
+    );
+
+    // An older first activity (an earlier statement imported) adds the gap only once.
+    let inp = listed_input(&[("yahoo", "VWCE.DE", "2019-03-01")]);
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    let u = &plan.listed[0];
+    assert_eq!(u.from, day("2019-03-01"));
+    assert_eq!(
+        &years(u)[..3],
+        [("2019", false), ("2020", false), ("2021", true)]
+    );
+    assert_eq!(plan.listed_missing("yahoo"), 2);
+}
+
+#[test]
+fn twelvedata_without_a_key_plans_nothing_and_waits_for_a_key() {
+    let cache = HistoryCache::open_in_memory().unwrap();
+    let mut inp = listed_input(&[("twelvedata", "MSFT", "2024-02-01")]);
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    assert!(plan.listed.is_empty());
+    let p = backfill::BackfillProgress::for_plan(&plan, None);
+    assert_eq!(
+        p.source("twelvedata").unwrap().state,
+        BackfillState::NeedsKey
+    );
+    assert_eq!(
+        backfill::BackfillProgress::at_rest(&plan, None)
+            .source("twelvedata")
+            .unwrap()
+            .state,
+        BackfillState::NeedsKey
+    );
+
+    inp.keys
+        .insert("twelvedata".into(), ApiKey("k-3f9a".into()));
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    assert_eq!(plan.listed.len(), 1);
+    assert!(
+        !format!("{plan:?}").contains("k-3f9a"),
+        "key hidden in debug output"
+    );
+
+    inp.listed_disabled.insert("twelvedata".into());
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    assert!(plan.listed.is_empty());
+    assert_eq!(
+        backfill::BackfillProgress::for_plan(&plan, None)
+            .source("twelvedata")
+            .unwrap()
+            .state,
+        BackfillState::Disabled
+    );
+}
+
+#[test]
+fn listed_run_records_years_spaces_requests_and_counts_progress() {
+    let mut cache = HistoryCache::open_in_memory().unwrap();
+    let http = listed_http(false);
+    let inp = listed_input(&[
+        ("yahoo", "SPY", "2020-01-02"),
+        ("yahoo", "VWCE.DE", "2020-05-04"),
+    ]);
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    assert_eq!(plan.listed_planned("yahoo"), 14);
+    let mut seen = Vec::new();
+    let p = backfill::run(
+        &plan,
+        &mut cache,
+        &http,
+        &AtomicBool::new(false),
+        &|| "2026-11-20T10:00:00Z".into(),
+        &mut |p| {
+            let y = p.source("yahoo").unwrap();
+            seen.push(format!("{} of {}", y.done, y.planned));
+        },
+    );
+    assert_eq!(seen, ["0 of 14", "7 of 14", "14 of 14"]);
+    assert_eq!(p.source("yahoo").unwrap().state, BackfillState::Done);
+    assert_eq!(http.count(yahoo::BASE), 2, "one request per symbol");
+    assert_eq!(
+        http.times(yahoo::BASE),
+        [Duration::ZERO, Duration::from_secs(2)]
+    );
+    let done = cache.fetched("yahoo", "VWCE.DE").unwrap();
+    assert_eq!(done.len(), 7);
+    assert!(done.values().all(|s| *s == FetchStatus::Ok));
+    let closes = cache.listed_prices("yahoo", "VWCE.DE").unwrap();
+    assert_eq!(closes.first().unwrap().date, "2020-05-04");
+    assert_eq!(closes.last().unwrap().date, "2026-11-20");
+    assert!(closes
+        .iter()
+        .all(|c| c.currency == "EUR" && c.close == "100"));
+}
+
+#[test]
+fn listed_resumes_after_interruption() {
+    let mut cache = HistoryCache::open_in_memory().unwrap();
+    let http = listed_http(false);
+    let inp = listed_input(&[
+        ("yahoo", "SPY", "2023-01-03"),
+        ("yahoo", "VWCE.DE", "2023-01-03"),
+    ]);
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    let cancel = AtomicBool::new(false);
+    let p = backfill::run(
+        &plan,
+        &mut cache,
+        &http,
+        &cancel,
+        &|| "t".into(),
+        &mut |p| {
+            if p.source("yahoo").unwrap().done > 0 {
+                cancel.store(true, Ordering::SeqCst);
+            }
+        },
+    );
+    assert_eq!(p.source("yahoo").unwrap().state, BackfillState::Waiting);
+    assert_eq!(cache.fetched("yahoo", "SPY").unwrap().len(), 4);
+    assert!(cache.fetched("yahoo", "VWCE.DE").unwrap().is_empty());
+    let again = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    assert_eq!(
+        years(&again.listed[0]),
+        [("2026", true)],
+        "SPY: recheck only"
+    );
+    assert_eq!(again.listed[1].symbol, "VWCE.DE");
+    assert_eq!(again.listed[1].years.len(), 4);
+}
+
+#[test]
+fn yahoo_failure_does_not_stop_tefas_and_unknown_symbols_are_noted() {
+    let mut cache = HistoryCache::open_in_memory().unwrap();
+    let mut inp = listed_input(&[("yahoo", "VWCE.DE", "2026-09-01")]);
+    inp.tefas.insert("AFT".into(), day("2026-09-15"));
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    let p = run(
+        &plan,
+        &mut cache,
+        &listed_http(true),
+        &AtomicBool::new(false),
+    );
+    let y = p.source("yahoo").unwrap();
+    assert_eq!(y.state, BackfillState::Failed);
+    assert!(y.error.as_deref().unwrap().contains("connection reset"));
+    assert_eq!(p.source("tefas").unwrap().state, BackfillState::Done);
+    assert!(
+        cache.fetched("yahoo", "VWCE.DE").unwrap().is_empty(),
+        "failure caches nothing"
+    );
+
+    let inp = listed_input(&[
+        ("yahoo", "NOSUCHXYZ", "2026-02-02"),
+        ("yahoo", "VWCE.DE", "2026-02-02"),
+    ]);
+    let plan = backfill::plan(&inp, &cache, day("2026-11-20")).unwrap();
+    let p = run(
+        &plan,
+        &mut cache,
+        &listed_http(false),
+        &AtomicBool::new(false),
+    );
+    let y = p.source("yahoo").unwrap();
+    assert_eq!(y.state, BackfillState::Done);
+    assert_eq!(y.note.as_deref(), Some("NOSUCHXYZ: symbol not found"));
+    assert_eq!(
+        cache.fetched("yahoo", "NOSUCHXYZ").unwrap().get("2026"),
+        Some(&FetchStatus::None)
+    );
+    assert!(!cache.listed_prices("yahoo", "VWCE.DE").unwrap().is_empty());
 }

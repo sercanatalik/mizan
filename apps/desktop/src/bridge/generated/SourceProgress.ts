@@ -11,7 +11,7 @@ done: number,
  */
 planned: number, 
 /**
- * "months" (fund-months) or "days".
+ * "months" (fund-months), "days" or "years" (symbol-years).
  */
 unit: string, error: string | null, 
 /**

@@ -3,12 +3,13 @@ import type { ManualPrice } from "./ManualPrice";
 import type { MergedInto } from "./MergedInto";
 import type { PriceView } from "./PriceView";
 import type { SourceView } from "./SourceView";
+import type { SuggestionView } from "./SuggestionView";
 
 export type AssetView = { asset_id: number, instrument_key: string, 
 /**
  * Symbol, else name, else the key.
  */
-label: string, name: string | null, class: string, currency: string | null, source: SourceView, suggestion: string | null, latest_price: PriceView | null, holders: number, 
+label: string, name: string | null, class: string, currency: string | null, source: SourceView, suggestion: SuggestionView | null, latest_price: PriceView | null, holders: number, 
 /**
  * Set when this asset was merged into another.
  */

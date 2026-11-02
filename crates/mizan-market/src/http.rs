@@ -15,6 +15,13 @@ pub struct HttpError(pub String);
 pub trait Http: Send + Sync {
     fn get(&self, url: &str) -> Result<Response, HttpError>;
     fn post_json(&self, url: &str, body: &str) -> Result<Response, HttpError>;
+    /// GET with extra request headers (for example an API key, which must never
+    /// go into the URL). Implementations that cannot send headers fall back to
+    /// a plain GET; [`ReqwestHttp`] sends them.
+    fn get_with_headers(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response, HttpError> {
+        let _ = headers;
+        self.get(url)
+    }
     /// Wait between requests to respect provider rate limits.
     fn pause(&self, d: Duration);
 }
@@ -53,6 +60,14 @@ impl ReqwestHttp {
 impl Http for ReqwestHttp {
     fn get(&self, url: &str) -> Result<Response, HttpError> {
         Self::finish(self.client.get(url).send())
+    }
+
+    fn get_with_headers(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response, HttpError> {
+        let mut req = self.client.get(url);
+        for (k, v) in headers {
+            req = req.header(*k, *v);
+        }
+        Self::finish(req.send())
     }
 
     fn post_json(&self, url: &str, body: &str) -> Result<Response, HttpError> {

@@ -11,8 +11,51 @@ pub const MANUAL: &str = "manual";
 /// Where an asset's prices come from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PriceSourceKind {
-    Tefas { fund_code: String },
+    Tefas {
+        fund_code: String,
+    },
+    /// Yahoo Finance, by Yahoo symbol (for example `VWCE.DE`).
+    Yahoo {
+        symbol: String,
+    },
+    /// Twelve Data, by Twelve Data symbol.
+    TwelveData {
+        symbol: String,
+    },
     Manual,
+}
+
+impl PriceSourceKind {
+    /// Provider id as stored (`tefas`, `yahoo`, `twelvedata`, `manual`).
+    pub fn provider(&self) -> &'static str {
+        match self {
+            PriceSourceKind::Tefas { .. } => "tefas",
+            PriceSourceKind::Yahoo { .. } => "yahoo",
+            PriceSourceKind::TwelveData { .. } => "twelvedata",
+            PriceSourceKind::Manual => MANUAL,
+        }
+    }
+
+    /// Fund code or provider symbol; `None` for manual.
+    pub fn symbol(&self) -> Option<&str> {
+        match self {
+            PriceSourceKind::Tefas { fund_code } => Some(fund_code),
+            PriceSourceKind::Yahoo { symbol } | PriceSourceKind::TwelveData { symbol } => {
+                Some(symbol)
+            }
+            PriceSourceKind::Manual => None,
+        }
+    }
+
+    /// For listed providers: (provider id, symbol).
+    pub fn listed(&self) -> Option<(&'static str, &str)> {
+        match self {
+            PriceSourceKind::Yahoo { symbol } | PriceSourceKind::TwelveData { symbol } => {
+                Some((self.provider(), symbol))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,6 +120,12 @@ impl Store {
             "tefas" => PriceSourceKind::Tefas {
                 fund_code: s.unwrap_or_default(),
             },
+            "yahoo" => PriceSourceKind::Yahoo {
+                symbol: s.unwrap_or_default(),
+            },
+            "twelvedata" => PriceSourceKind::TwelveData {
+                symbol: s.unwrap_or_default(),
+            },
             _ => PriceSourceKind::Manual,
         }))
     }
@@ -93,10 +142,13 @@ impl Store {
                     .execute("DELETE FROM price_sources WHERE asset_id = ?1", [asset_id])?;
             }
             Some(s) => {
-                let (provider, symbol) = match s {
-                    PriceSourceKind::Tefas { fund_code } => ("tefas", Some(fund_code.as_str())),
-                    PriceSourceKind::Manual => (MANUAL, None),
-                };
+                let provider = s.provider();
+                let symbol = s.symbol().map(|v| v.trim().to_uppercase());
+                if symbol.as_deref() == Some("") {
+                    return Err(StorageError::Invalid(format!(
+                        "a {provider} price source needs a symbol"
+                    )));
+                }
                 self.conn.execute(
                     "INSERT INTO price_sources (asset_id, provider, symbol) VALUES (?1, ?2, ?3)
                      ON CONFLICT(asset_id) DO UPDATE SET provider = excluded.provider, symbol = excluded.symbol",

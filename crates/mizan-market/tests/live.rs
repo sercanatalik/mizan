@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use mizan_market::{tcmb, tefas, ReqwestHttp};
+use mizan_market::{tcmb, tefas, yahoo, ReqwestHttp};
 
 fn today() -> mizan_import::Date {
     mizan_import::Date(chrono::Local::now().date_naive())
@@ -31,4 +31,21 @@ fn tefas_returns_a_recent_price_for_a_large_fund() {
     let p = f.latest.get("AFT").expect("AFT listed");
     assert!(p.price > rust_decimal::Decimal::ZERO);
     eprintln!("AFT {} on {}", p.price, p.date);
+}
+
+#[test]
+#[ignore = "network"]
+fn yahoo_returns_recent_closes_and_history_across_a_split() {
+    let http = ReqwestHttp::new().unwrap();
+    for symbol in ["AAPL", "VWCE.DE"] {
+        let closes = yahoo::fetch_latest(&http, symbol).unwrap();
+        let last = closes.last().expect("recent closes");
+        assert!(last.value > rust_decimal::Decimal::ZERO);
+        eprintln!("{symbol} {} {} on {}", last.value, last.currency, last.date);
+    }
+    // The span runs through today, so the 2020 split is undone (raw close ≈ 499).
+    let d = mizan_import::Date::parse("2020-08-28").unwrap();
+    let span = yahoo::fetch_span(&http, "AAPL", d, today()).unwrap();
+    let c = span.iter().find(|c| c.date == d).expect("2020-08-28 close");
+    assert!(c.value > rust_decimal::Decimal::from(450), "{}", c.value);
 }

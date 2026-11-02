@@ -18,6 +18,18 @@ struct Fake;
 
 impl Http for Fake {
     fn get(&self, url: &str) -> Result<Response, HttpError> {
+        if url.starts_with(yahoo::BASE) {
+            return Ok(Response {
+                status: 200,
+                body: r#"{"chart":{"result":[{"meta":{"currency":"USD","priceHint":2,"gmtoffset":-14400},"timestamp":[1749562200],"indicators":{"quote":[{"close":[600.25]}]}}],"error":null}}"#.into(),
+            });
+        }
+        if url.starts_with(twelvedata::BASE) {
+            return Ok(Response {
+                status: 200,
+                body: r#"{"meta":{"symbol":"MSFT","currency":"USD"},"values":[{"datetime":"2025-06-09","close":"470.38000"}],"status":"ok"}"#.into(),
+            });
+        }
         if url == tcmb::TODAY_URL {
             return Ok(Response {
                 status: 404,
@@ -107,10 +119,31 @@ fn base_currency_other_than_try_needs_rates_from_the_first_activity() {
     assert_eq!(inp.fx_from, Some(Date::parse("2025-03-05").unwrap()));
 }
 
+const KEY: &str = "td-private-key-7c21";
+
 #[test]
 fn cache_contains_no_account_or_activity_data() {
     let (mut store, batch) = pension_store();
     store.set_setting("base_currency", "USD").unwrap();
+    // Two of the assets priced as listed instruments, one needing an API key.
+    let assets = store.list_assets().unwrap();
+    store
+        .set_price_source(
+            assets[0].id,
+            Some(&PriceSourceKind::Yahoo {
+                symbol: "SPY".into(),
+            }),
+        )
+        .unwrap();
+    store
+        .set_price_source(
+            assets[1].id,
+            Some(&PriceSourceKind::TwelveData {
+                symbol: "MSFT".into(),
+            }),
+        )
+        .unwrap();
+    set_api_key(&mut store, "twelvedata", Some(KEY)).unwrap();
     let mut cache = HistoryCache::open_in_memory().unwrap();
     let today = Date::parse("2025-06-10").unwrap();
     refresh(
@@ -124,6 +157,7 @@ fn cache_contains_no_account_or_activity_data() {
     .unwrap();
     let plan = backfill::plan(&PlanInput::from_store(&store).unwrap(), &cache, today).unwrap();
     assert!(!plan.tefas.is_empty() && !plan.tcmb.is_empty());
+    assert_eq!(plan.listed.len(), 2, "SPY and MSFT");
     backfill::run(
         &plan,
         &mut cache,
@@ -145,6 +179,17 @@ fn cache_contains_no_account_or_activity_data() {
             "fx_rates",
             vec!["currency", "date", "try_per_unit", "source", "fetched_at"],
         ),
+        (
+            "listed_prices",
+            vec![
+                "source",
+                "symbol",
+                "date",
+                "close",
+                "currency",
+                "fetched_at",
+            ],
+        ),
     ];
     assert_eq!(columns.len(), expected.len());
     for ((t, cols), (et, ecols)) in columns.iter().zip(expected) {
@@ -154,7 +199,9 @@ fn cache_contains_no_account_or_activity_data() {
 
     let values = cache.all_text_values().unwrap();
     assert!(!values.is_empty());
-    let mut private: Vec<String> = vec!["9000001".into(), "Anadolu".into()];
+    assert!(values.iter().any(|v| v == "SPY") && values.iter().any(|v| v == "MSFT"));
+    assert!(!cache.listed_prices("yahoo", "SPY").unwrap().is_empty());
+    let mut private: Vec<String> = vec!["9000001".into(), "Anadolu".into(), KEY.into()];
     for r in batch["records"].as_array().unwrap() {
         if let Some(q) = r["quantity"].as_str() {
             private.push(q.into());
@@ -209,6 +256,38 @@ fn benchmark_fund_is_backfilled_from_the_first_activity_even_when_not_held() {
         .unwrap();
     let inp = PlanInput::from_store(&store).unwrap();
     assert_eq!(inp.tefas["TCD"], Date::parse("2025-03-05").unwrap());
+}
+
+#[test]
+fn listed_benchmark_is_backfilled_from_the_first_activity_even_when_not_held() {
+    let (mut store, _) = pension_store();
+    let spy = store
+        .create_asset(
+            "sym:SPY@ARCX",
+            &mizan_import::InstrumentHint {
+                symbol: Some("SPY".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    store
+        .set_price_source(
+            spy,
+            Some(&PriceSourceKind::Yahoo {
+                symbol: "spy".into(),
+            }),
+        )
+        .unwrap();
+    let key = ("yahoo".to_string(), "SPY".to_string());
+    assert!(!PlanInput::from_store(&store)
+        .unwrap()
+        .listed
+        .contains_key(&key));
+    store
+        .set_setting(backfill::BENCHMARK_KEY, &spy.to_string())
+        .unwrap();
+    let inp = PlanInput::from_store(&store).unwrap();
+    assert_eq!(inp.listed[&key], Date::parse("2025-03-05").unwrap());
 }
 
 #[test]

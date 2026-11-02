@@ -69,8 +69,10 @@ test("market wrappers send snake_case args and refresh values", async () => {
   const { qc, wrapper } = setup();
   const spy = vi.spyOn(qc, "invalidateQueries");
   const { result } = renderHook(() => useAssetMutations(), { wrapper });
-  await act(() => result.current.setPriceSource.mutateAsync({ assetId: 3, kind: "tefas", fundCode: "AFT" }));
-  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_price_source", { asset_id: 3, kind: "tefas", fund_code: "AFT" });
+  await act(() => result.current.setPriceSource.mutateAsync({ assetId: 3, kind: "tefas", symbol: "AFT" }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_price_source", { asset_id: 3, kind: "tefas", symbol: "AFT" });
+  await act(() => result.current.setPriceSource.mutateAsync({ assetId: 3, kind: "yahoo", symbol: "VWCE.DE" }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_price_source", { asset_id: 3, kind: "yahoo", symbol: "VWCE.DE" });
   await act(() => result.current.addManualPrice.mutateAsync({ assetId: 3, date: "2026-10-30", value: "1.25", currency: "TRY" }));
   expect(mockInvoke).toHaveBeenCalledWith("cmd_add_manual_price", { asset_id: 3, date: "2026-10-30", value: "1.25", currency: "TRY" });
   await act(() => result.current.mergeAssets.mutateAsync({ from: 4, into: 3 }));
@@ -94,6 +96,10 @@ test("settings mutations", async () => {
   const { result } = renderHook(() => useSettingsMutations(), { wrapper });
   await act(() => result.current.setProviderEnabled.mutateAsync({ id: "tefas", enabled: false }));
   expect(mockInvoke).toHaveBeenCalledWith("cmd_set_provider_enabled", { id: "tefas", enabled: false });
+  await act(() => result.current.setApiKey.mutateAsync({ id: "twelvedata", key: "abc123" }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "twelvedata", key: "abc123" });
+  await act(() => result.current.setApiKey.mutateAsync({ id: "twelvedata", key: null }));
+  expect(mockInvoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "twelvedata", key: null });
   await act(() => result.current.setBaseCurrency.mutateAsync("EUR"));
   expect(mockInvoke).toHaveBeenCalledWith("cmd_set_base_currency", { currency: "EUR" });
 });

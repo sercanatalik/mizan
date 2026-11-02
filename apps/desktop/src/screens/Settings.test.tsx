@@ -14,7 +14,14 @@ beforeEach(() => {
 
 function serve(extra: Record<string, unknown> = {}) {
   vi.mocked(invoke).mockImplementation(
-    invokeFrom({ ...EMPTY, cmd_set_provider_enabled: undefined, cmd_set_base_currency: undefined, cmd_set_refresh_on_start: undefined, ...extra }) as typeof invoke,
+    invokeFrom({
+      ...EMPTY,
+      cmd_set_provider_enabled: undefined,
+      cmd_set_api_key: undefined,
+      cmd_set_base_currency: undefined,
+      cmd_set_refresh_on_start: undefined,
+      ...extra,
+    }) as typeof invoke,
   );
 }
 
@@ -22,7 +29,9 @@ test("lists built-in providers with switches and toggles one off", async () => {
   serve();
   renderApp("/settings");
   const rows = await screen.findAllByTestId("provider-row");
-  expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["TEFAS", "TCMB"]);
+  expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["TEFAS", "TCMB", "Yahoo Finance", "Twelve Data"]);
+  expect(rows[2]).toHaveTextContent("unofficial source");
+  expect(rows[3]).toHaveTextContent("the free plan covers US listings");
   expect(rows[0]).toHaveTextContent("Turkish investment and pension fund prices");
   const tefas = screen.getByRole("switch", { name: "TEFAS enabled" });
   expect(tefas).toBeChecked();
@@ -117,4 +126,59 @@ test("idle and disabled history states", async () => {
   const rows = await screen.findAllByTestId("history-row");
   expect(rows[0]).toHaveTextContent("Provider is off");
   expect(rows[1]).toHaveTextContent("Only TRY is used");
+});
+
+test("saves and clears the Twelve Data key without ever showing it", async () => {
+  serve();
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("provider-row");
+  expect(within(rows[0]!).queryByLabelText(/API key/)).not.toBeInTheDocument();
+  const field = within(rows[3]!).getByLabelText("Twelve Data API key");
+  expect(field).toHaveAttribute("type", "password");
+  expect(rows[3]).toHaveTextContent("not saved");
+  await userEvent.type(field, " td-key-3f9a ");
+  await userEvent.click(within(rows[3]!).getByRole("button", { name: "Save key" }));
+  expect(invoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "twelvedata", key: "td-key-3f9a" });
+});
+
+test("a saved key shows only its masked hint and can be cleared", async () => {
+  serve({
+    cmd_settings: {
+      ...EMPTY.cmd_settings,
+      providers: EMPTY.cmd_settings.providers.map((p) => (p.id === "twelvedata" ? { ...p, api_key_hint: "••••3f9a" } : p)),
+    },
+  });
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("provider-row");
+  expect(within(rows[3]!).getByTestId("api-key-hint")).toHaveTextContent("••••3f9a");
+  await userEvent.click(within(rows[3]!).getByRole("button", { name: "Clear key" }));
+  expect(invoke).toHaveBeenCalledWith("cmd_set_api_key", { id: "twelvedata", key: null });
+});
+
+test("listed history counts years and waits for an API key", async () => {
+  const base = EMPTY.cmd_backfill_status;
+  serve({
+    cmd_backfill_status: {
+      ...base,
+      sources: [
+        base.sources[0],
+        base.sources[1],
+        { ...base.sources[2], state: "running", done: 6, planned: 14 },
+        { ...base.sources[3], state: "needs_key" },
+      ],
+    },
+  });
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("history-row");
+  expect(rows[2]).toHaveTextContent("Yahoo Finance");
+  expect(rows[2]).toHaveTextContent("6 of 14 years");
+  expect(rows[3]).toHaveTextContent("Waiting for an API key");
+  expect(rows[3]).toHaveTextContent("Save a Twelve Data API key above");
+});
+
+test("idle listed history explains why", async () => {
+  serve();
+  renderApp("/settings");
+  const rows = await screen.findAllByTestId("history-row");
+  expect(rows[2]).toHaveTextContent("no asset priced from Yahoo Finance has activities yet");
 });

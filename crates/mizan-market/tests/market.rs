@@ -91,9 +91,9 @@ const EMPTY: &str =
 #[test]
 fn registry_lists_built_in_providers_enabled_by_default() {
     let ids: Vec<&str> = PROVIDERS.iter().map(|p| p.id).collect();
-    assert_eq!(ids, vec!["tefas", "tcmb"]);
+    assert_eq!(ids, vec!["tefas", "tcmb", "yahoo", "twelvedata"]);
     let mut s = Store::open_in_memory().unwrap();
-    assert!(is_enabled(&s, "tefas") && is_enabled(&s, "tcmb"));
+    assert!(ids.iter().all(|id| is_enabled(&s, id)));
     set_enabled(&mut s, "tefas", false).unwrap();
     assert!(!is_enabled(&s, "tefas"));
     assert!(set_enabled(&mut s, "nope", true).is_err());
@@ -399,8 +399,9 @@ fn unknown_fund_code_is_reported_per_asset() {
 #[test]
 fn disabled_providers_and_manual_assets_make_no_requests() {
     let (mut s, aft, _) = store_with_assets();
-    set_enabled(&mut s, "tefas", false).unwrap();
-    set_enabled(&mut s, "tcmb", false).unwrap();
+    for p in PROVIDERS {
+        set_enabled(&mut s, p.id, false).unwrap();
+    }
     let http = FakeHttp::default();
     let rep = run(&mut s, &http);
     assert!(http.calls.lock().unwrap().is_empty());

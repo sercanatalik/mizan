@@ -45,6 +45,7 @@ pub fn run() {
             market::cmd_backfill_status,
             market::cmd_settings,
             market::cmd_set_provider_enabled,
+            market::cmd_set_api_key,
             market::cmd_set_base_currency,
             market::cmd_set_refresh_on_start,
             market::cmd_assets,

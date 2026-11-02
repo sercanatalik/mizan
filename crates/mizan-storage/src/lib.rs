@@ -15,13 +15,16 @@ pub type BatchId = i64;
 
 pub mod history;
 pub mod market;
-pub use history::{CachedFundPrice, CachedRate, Dated, FetchStatus, FetchedUnit, HistoryCache};
+pub use history::{
+    CachedFundPrice, CachedListedPrice, CachedRate, Dated, FetchStatus, FetchedUnit, HistoryCache,
+};
 pub use market::*;
 
 /// Migrations in order. The database's `user_version` records how many have run.
 const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_init.sql"),
     include_str!("../migrations/0002_market.sql"),
+    include_str!("../migrations/0003_listed.sql"),
 ];
 
 #[derive(Debug, Error)]

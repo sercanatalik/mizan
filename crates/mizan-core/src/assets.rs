@@ -1,4 +1,4 @@
-//! Price-source suggestions for assets.
+//! Price-source suggestions for assets, and the assets view.
 
 use mizan_import::{ClassHint, InstrumentHint};
 use mizan_storage::PriceSourceKind;
@@ -17,10 +17,110 @@ pub fn tefas_suggestion(hint: &InstrumentHint, source: Option<&PriceSourceKind>)
     (looks_like_code && fund_like).then(|| symbol.to_owned())
 }
 
+/// Yahoo suffix per ISO 10383 exchange code (MIC). US exchanges have none.
+const YAHOO_SUFFIX: &[(&str, &str)] = &[
+    ("XNAS", ""),
+    ("XNYS", ""),
+    ("ARCX", ""),
+    ("BATS", ""),
+    ("XASE", ""),
+    ("XETR", ".DE"),
+    ("XFRA", ".F"),
+    ("XAMS", ".AS"),
+    ("XPAR", ".PA"),
+    ("XBRU", ".BR"),
+    ("XLIS", ".LS"),
+    ("XMIL", ".MI"),
+    ("XMAD", ".MC"),
+    ("XLON", ".L"),
+    ("XSWX", ".SW"),
+    ("XWBO", ".VI"),
+    ("XSTO", ".ST"),
+    ("XCSE", ".CO"),
+    ("XHEL", ".HE"),
+    ("XOSL", ".OL"),
+    ("XDUB", ".IR"),
+];
+
+/// Suggest a Yahoo symbol for an asset without a price source: the imported
+/// symbol plus the Yahoo suffix of its exchange code, or the plain symbol for a
+/// USD asset without an exchange code. A dot in a US symbol becomes a hyphen
+/// (`BRK.B` → `BRK-B`). Computed from stored data only; never applied
+/// automatically, and not offered when the TEFAS suggestion applies.
+pub fn listed_suggestion(
+    hint: &InstrumentHint,
+    source: Option<&PriceSourceKind>,
+) -> Option<String> {
+    if source.is_some() || tefas_suggestion(hint, None).is_some() {
+        return None;
+    }
+    let symbol = hint.symbol.as_deref()?.trim().to_uppercase();
+    if symbol.is_empty() || symbol.contains(char::is_whitespace) {
+        return None;
+    }
+    let suffix = match hint.mic.as_deref().map(|m| m.trim().to_uppercase()) {
+        Some(mic) if !mic.is_empty() => YAHOO_SUFFIX
+            .iter()
+            .find(|(m, _)| *m == mic)
+            .map(|(_, s)| *s)?,
+        _ if hint.currency.as_ref().is_some_and(|c| c.as_str() == "USD") => "",
+        _ => return None,
+    };
+    if suffix.is_empty() {
+        Some(symbol.replace('.', "-"))
+    } else {
+        Some(format!("{symbol}{suffix}"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn listed_suggestions() {
+        let s = |v| listed_suggestion(&hint(v), None);
+        assert_eq!(
+            s(json!({"symbol": "VWCE", "mic": "XETR", "currency": "EUR"})).as_deref(),
+            Some("VWCE.DE")
+        );
+        assert_eq!(
+            s(json!({"symbol": "AAPL", "currency": "USD"})).as_deref(),
+            Some("AAPL")
+        );
+        assert_eq!(
+            s(json!({"symbol": "BRK.B", "mic": "XNYS"})).as_deref(),
+            Some("BRK-B")
+        );
+        assert_eq!(
+            s(json!({"symbol": "VUSA", "mic": "XLON", "currency": "GBP"})).as_deref(),
+            Some("VUSA.L")
+        );
+        assert_eq!(
+            s(json!({"symbol": "7203", "mic": "XTKS", "currency": "JPY"})),
+            None,
+            "unknown exchange"
+        );
+        assert_eq!(
+            s(json!({"symbol": "SAP", "currency": "EUR"})),
+            None,
+            "no exchange and not USD"
+        );
+        assert_eq!(
+            s(json!({"symbol": "AFT", "class_hint": "fund", "currency": "TRY"})),
+            None,
+            "TEFAS suggestion wins"
+        );
+        assert_eq!(
+            listed_suggestion(
+                &hint(json!({"symbol": "AAPL", "currency": "USD"})),
+                Some(&PriceSourceKind::Manual)
+            ),
+            None,
+            "already has a source"
+        );
+    }
 
     fn hint(v: serde_json::Value) -> InstrumentHint {
         serde_json::from_value(v).unwrap()
@@ -97,6 +197,8 @@ use crate::valuation::{is_stale, Market};
 #[serde(rename_all = "snake_case")]
 pub enum SourceKind {
     Tefas,
+    Yahoo,
+    Twelvedata,
     Manual,
     None,
 }
@@ -105,7 +207,62 @@ pub enum SourceKind {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct SourceView {
     pub kind: SourceKind,
-    pub fund_code: Option<String>,
+    /// Fund code (TEFAS) or provider symbol (Yahoo, Twelve Data).
+    pub symbol: Option<String>,
+}
+
+impl SourceView {
+    pub fn of(source: Option<&PriceSourceKind>) -> Self {
+        let kind = match source {
+            Some(PriceSourceKind::Tefas { .. }) => SourceKind::Tefas,
+            Some(PriceSourceKind::Yahoo { .. }) => SourceKind::Yahoo,
+            Some(PriceSourceKind::TwelveData { .. }) => SourceKind::Twelvedata,
+            Some(PriceSourceKind::Manual) => SourceKind::Manual,
+            None => SourceKind::None,
+        };
+        SourceView {
+            kind,
+            symbol: source.and_then(|s| s.symbol()).map(str::to_owned),
+        }
+    }
+}
+
+/// A price source Mizan proposes for an asset; applied only when accepted.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct SuggestionView {
+    pub kind: SourceKind,
+    pub symbol: String,
+    /// For example "TEFAS: AFT" or "Yahoo: VWCE.DE".
+    pub label: String,
+}
+
+/// The suggestion for an asset, TEFAS first, then a Yahoo symbol.
+pub fn suggestion(
+    hint: &InstrumentHint,
+    source: Option<&PriceSourceKind>,
+) -> Option<PriceSourceKind> {
+    if let Some(code) = tefas_suggestion(hint, source) {
+        return Some(PriceSourceKind::Tefas { fund_code: code });
+    }
+    listed_suggestion(hint, source).map(|symbol| PriceSourceKind::Yahoo { symbol })
+}
+
+impl SuggestionView {
+    pub fn of(s: &PriceSourceKind) -> Option<Self> {
+        let symbol = s.symbol()?.to_owned();
+        let (kind, name) = match s {
+            PriceSourceKind::Tefas { .. } => (SourceKind::Tefas, "TEFAS"),
+            PriceSourceKind::Yahoo { .. } => (SourceKind::Yahoo, "Yahoo"),
+            PriceSourceKind::TwelveData { .. } => (SourceKind::Twelvedata, "Twelve Data"),
+            PriceSourceKind::Manual => return None,
+        };
+        Some(SuggestionView {
+            label: format!("{name}: {symbol}"),
+            kind,
+            symbol,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -138,7 +295,7 @@ pub struct AssetView {
     pub class: String,
     pub currency: Option<String>,
     pub source: SourceView,
-    pub suggestion: Option<String>,
+    pub suggestion: Option<SuggestionView>,
     pub latest_price: Option<PriceView>,
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub holders: usize,
@@ -206,21 +363,10 @@ pub fn assets_view(store: &Store, today: Date) -> Result<Vec<AssetView>, Storage
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .unwrap_or_else(|| "other".into()),
             currency: a.hint.currency.as_ref().map(|c| c.to_string()),
-            suggestion: tefas_suggestion(&a.hint, source.as_ref()),
-            source: match source {
-                Some(PriceSourceKind::Tefas { fund_code }) => SourceView {
-                    kind: SourceKind::Tefas,
-                    fund_code: Some(fund_code),
-                },
-                Some(PriceSourceKind::Manual) => SourceView {
-                    kind: SourceKind::Manual,
-                    fund_code: None,
-                },
-                None => SourceView {
-                    kind: SourceKind::None,
-                    fund_code: None,
-                },
-            },
+            suggestion: suggestion(&a.hint, source.as_ref())
+                .as_ref()
+                .and_then(SuggestionView::of),
+            source: SourceView::of(source.as_ref()),
             latest_price,
             holders,
             merged_into,
